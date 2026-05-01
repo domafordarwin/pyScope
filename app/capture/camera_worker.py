@@ -119,6 +119,8 @@ class CameraWorker(QtCore.QObject):
         self.actual_width = None
         self.actual_height = None
         self.actual_fps = None
+        # name -> {type, min, max, step, default, value} — apply_hi_mag_boost에서 max 결정에 사용
+        self._controls = {}
 
     # ---------- helpers ----------
     @staticmethod
@@ -273,27 +275,84 @@ class CameraWorker(QtCore.QObject):
         except Exception:
             pass
 
+    def _ctrl_max(self, name, fallback=None):
+        """detected controls 의 max 값. 없으면 fallback."""
+        c = self._controls.get(name)
+        if c and "max" in c:
+            try:
+                return int(c["max"])
+            except (TypeError, ValueError):
+                pass
+        return fallback
+
     @QtCore.pyqtSlot()
     def apply_hi_mag_boost(self):
-        """400배 등 고배율 환경 빛량 부스트.
+        """400배 등 고배율 환경 빛량 부스트 — 카메라 detected range 의 max 사용.
 
-        노출 50ms + gain ↑ + brightness max. LED PWM banding 가능성을
-        감수하더라도 빛량 우선 — 시료가 어두워서 보이지 않는 것보다 낫다.
-        존재하지 않는 컨트롤은 set_v4l2_control 이 silent fail 한다.
+        100배에서는 보이지만 400배에서 검은색이 되는 케이스에 대응:
+          - exposure_time_absolute: 카메라 max 의 80% (max 가 너무 크면 1.5초 cap)
+          - gain: 카메라 max 의 100%
+          - brightness: 카메라 max
+          - contrast / gamma: 카메라 max (어두운 영역 대비 강화)
+          - backlight_compensation: max
+        검출 안 된 컨트롤은 보수적 기본값 사용. PWM banding 가능 — opt-in.
         """
         if self.actual_index is None:
             self.status.emit("고배율 부스트 실패: 카메라 미시작")
             return
-        # auto exposure off (manual) → 노출 시간 직접 적용
-        self.set_v4l2_control("auto_exposure",            1)
-        self.set_v4l2_control("exposure_time_absolute", 500)   # 50 ms
-        self.set_v4l2_control("gain",                    80)
-        self.set_v4l2_control("brightness",              16)   # 일반 1-16
-        # 일반 웹캠 — backlight_compensation 도 같이 max
-        self.set_v4l2_control("backlight_compensation",   2)
+
+        # 매뉴얼 노출 모드로 전환 (auto 면 카메라가 노출을 다시 줄여버림)
+        self.set_v4l2_control("auto_exposure", 1)
+
+        # 노출: detected max 의 80% (15fps 라이브뷰 유지하면서 충분히 길게).
+        # max 가 매우 크면 (100배 단위라 50000=5s 도 가능) 1.5s 로 cap.
+        exp_max = self._ctrl_max("exposure_time_absolute", 5000)
+        exp_target = min(int(exp_max * 0.8), 15000)   # 100us 단위 — 1500ms cap
+        # 너무 작으면 (max=2000=200ms 같은 카메라) max 그대로 적용
+        if exp_target < 500:
+            exp_target = exp_max
+        self.set_v4l2_control("exposure_time_absolute", max(500, exp_target))
+
+        # 게인: max 적용 (보통 0~100 또는 0~255)
+        gain_max = self._ctrl_max("gain", 100)
+        self.set_v4l2_control("gain", gain_max)
+
+        # 밝기: max
+        bri_max = self._ctrl_max("brightness", 64)
+        self.set_v4l2_control("brightness", bri_max)
+
+        # 대비/감마/역광 보정 — 어두운 영역 가시성 향상
+        con_max = self._ctrl_max("contrast", 64)
+        self.set_v4l2_control("contrast", con_max)
+        gam_max = self._ctrl_max("gamma", 500)
+        self.set_v4l2_control("gamma", gam_max)
+        bl_max = self._ctrl_max("backlight_compensation", 2)
+        self.set_v4l2_control("backlight_compensation", bl_max)
+
         self.status.emit(
-            "🔆 고배율 부스트 — 노출 50ms · gain 80 · brightness max"
+            "🔆 고배율 부스트 — 노출 %d (×100us) · gain %d · brightness %d · "
+            "contrast %d · gamma %d" % (
+                max(500, exp_target), gain_max, bri_max, con_max, gam_max,
+            )
         )
+
+    @QtCore.pyqtSlot()
+    def reset_exposure_to_auto(self):
+        """고배율 부스트 해제 — 자동 노출 + 카메라 default 값으로 복귀."""
+        if self.actual_index is None:
+            return
+        # 자동 노출 (Aperture Priority)
+        self.set_v4l2_control("auto_exposure", 3)
+        # 각 컨트롤을 detected default 로 복귀 (없으면 0)
+        for name in ("brightness", "contrast", "gamma",
+                     "backlight_compensation"):
+            c = self._controls.get(name) or {}
+            try:
+                default = int(c.get("default", 0))
+            except (TypeError, ValueError):
+                default = 0
+            self.set_v4l2_control(name, default)
+        self.status.emit("↩ 일반 노출로 복귀 — auto exposure 활성화")
 
     @staticmethod
     def _read_camera_name(index):
@@ -514,6 +573,7 @@ class CameraWorker(QtCore.QObject):
         # v4l2 컨트롤 목록 + 현재 값 → GUI 카메라 패널에 전달
         controls = self.list_v4l2_controls(opened_index)
         if controls:
+            self._controls = controls
             self.controls_detected.emit(controls)
         try:
             fcc_int = int(self.cap.get(cv2.CAP_PROP_FOURCC))

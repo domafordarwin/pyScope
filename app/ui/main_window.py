@@ -142,6 +142,11 @@ class MainWindow(QtWidgets.QMainWindow):
             self.cam_worker.apply_hi_mag_boost,
             QtCore.Qt.QueuedConnection,
         )
+        # ↩ 일반 — auto exposure 복귀
+        self.sense_panel.normal_exposure_requested.connect(
+            self.cam_worker.reset_exposure_to_auto,
+            QtCore.Qt.QueuedConnection,
+        )
         self.cam_thread.started.connect(self.cam_worker.start)
 
         # ============ Signals wiring ============

@@ -290,6 +290,7 @@ class SensePanel(QtWidgets.QGroupBox):
     preset_clicked = QtCore.pyqtSignal(str)
     # 400배 등 고배율 — LED max + 카메라 노출/게인 부스트 요청
     hi_mag_requested = QtCore.pyqtSignal()
+    normal_exposure_requested = QtCore.pyqtSignal()
 
     # Internal pattern key -> Korean display label
     # Note: DF label is computed dynamically in _refresh_mode_label() to include
@@ -412,7 +413,12 @@ class SensePanel(QtWidgets.QGroupBox):
             "고배율(400x) 환경에서 빛량 부족 시 1클릭 보정\n"
             "  • BF 모드 + LED RGB 최대(255)\n"
             "  • LED 휘도 100%\n"
-            "  • 카메라 노출 시간 + 게인 자동 부스트"
+            "  • 카메라 노출/게인/대비를 detected max 로 부스트"
+        )
+        self.btn_normal = QtWidgets.QPushButton("↩  일반")
+        self.btn_normal.setProperty("role", "ghost")
+        self.btn_normal.setToolTip(
+            "일반 노출 모드로 복귀 — auto exposure 활성화 + 카메라 default 값"
         )
 
         pgrid.addWidget(self.btn_bf,    0, 0)
@@ -422,8 +428,9 @@ class SensePanel(QtWidgets.QGroupBox):
         pgrid.addWidget(self.btn_dpc_r, 1, 1)
         pgrid.addWidget(self.btn_dpc_t, 2, 0)
         pgrid.addWidget(self.btn_dpc_b, 2, 1)
-        # 고배율 버튼 — 가로 전체 (2번째 행 마지막에 폭 1로, 별도 행)
-        pgrid.addWidget(self.btn_hi_mag, 3, 0, 1, 3)
+        # 고배율 부스트(2칸) + 일반 복귀(1칸)
+        pgrid.addWidget(self.btn_hi_mag, 3, 0, 1, 2)
+        pgrid.addWidget(self.btn_normal, 3, 2, 1, 1)
         root.addLayout(pgrid)
 
         # ---- DF inner radius (암시야 환형 안쪽 반지름) ----
@@ -501,6 +508,7 @@ class SensePanel(QtWidgets.QGroupBox):
         self.btn_dpc_t.clicked.connect(lambda: self.apply_preset("DPC_TOP"))
         self.btn_dpc_b.clicked.connect(lambda: self.apply_preset("DPC_BOTTOM"))
         self.btn_hi_mag.clicked.connect(self._on_hi_mag_clicked)
+        self.btn_normal.clicked.connect(self.normal_exposure_requested.emit)
 
         self.btn_apply.clicked.connect(self.push_full_led_state)
         self.led_grid.pixel_toggled.connect(self._on_pixel_toggled)
