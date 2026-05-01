@@ -22,12 +22,17 @@ class ImageViewerDialog(QtWidgets.QDialog):
     MIN_ZOOM = 0.05
     MAX_ZOOM = 12.0
 
-    def __init__(self, image_path, parent=None, prefetched_bgr=None):
+    def __init__(self, image_path, parent=None, prefetched_bgr=None,
+                 image_list=None):
         """
         prefetched_bgr: if the caller already loaded the image (e.g. from
         the gallery click handler), pass it to skip a redundant cv2.imread
         on the GUI thread — eliminates the perceived "freeze" when opening
         a 5MP capture.
+
+        image_list: optional list of absolute image paths to enable
+        prev/next navigation. The current image_path must be present in
+        the list. When omitted, navigation buttons are hidden.
         """
         super().__init__(parent)
         self.image_path = image_path
@@ -37,6 +42,14 @@ class ImageViewerDialog(QtWidgets.QDialog):
         # Open at 80% of available screen
         screen = QtWidgets.QApplication.primaryScreen().availableGeometry()
         self.resize(int(screen.width() * 0.8), int(screen.height() * 0.85))
+
+        # Navigation state
+        self._image_list = list(image_list) if image_list else [image_path]
+        try:
+            self._index = self._image_list.index(image_path)
+        except ValueError:
+            self._image_list = [image_path]
+            self._index = 0
 
         if prefetched_bgr is not None:
             self._orig_pix = self._pixmap_from_bgr(prefetched_bgr)
@@ -56,6 +69,7 @@ class ImageViewerDialog(QtWidgets.QDialog):
         # Install pan event filter on the scroll viewport
         self.scroll.viewport().installEventFilter(self)
         self._update_pan_cursor()
+        self._update_nav_state()
 
         # Defer initial fit until widget is laid out
         QtCore.QTimer.singleShot(0, self._fit_to_window)
@@ -67,6 +81,19 @@ class ImageViewerDialog(QtWidgets.QDialog):
                             activated=self._fit_to_window)
         QtWidgets.QShortcut(QtGui.QKeySequence("Ctrl+1"), self,
                             activated=lambda: self._set_zoom(1.0))
+        # 네비게이션 단축키: ←/→ , Home/End, PgUp/PgDn
+        QtWidgets.QShortcut(QtGui.QKeySequence(QtCore.Qt.Key_Left),  self,
+                            activated=self._show_prev)
+        QtWidgets.QShortcut(QtGui.QKeySequence(QtCore.Qt.Key_Right), self,
+                            activated=self._show_next)
+        QtWidgets.QShortcut(QtGui.QKeySequence(QtCore.Qt.Key_PageUp), self,
+                            activated=self._show_prev)
+        QtWidgets.QShortcut(QtGui.QKeySequence(QtCore.Qt.Key_PageDown), self,
+                            activated=self._show_next)
+        QtWidgets.QShortcut(QtGui.QKeySequence(QtCore.Qt.Key_Home), self,
+                            activated=lambda: self._goto(0))
+        QtWidgets.QShortcut(QtGui.QKeySequence(QtCore.Qt.Key_End), self,
+                            activated=lambda: self._goto(len(self._image_list) - 1))
 
     # ---------- image loading ----------
     @staticmethod
@@ -171,6 +198,17 @@ class ImageViewerDialog(QtWidgets.QDialog):
         self.lbl_zoom.setMinimumWidth(64)
         self.lbl_zoom.setAlignment(QtCore.Qt.AlignCenter)
 
+        self.btn_prev = QtWidgets.QPushButton("◀  이전")
+        self.btn_prev.setProperty("role", "ghost")
+        self.btn_prev.setToolTip("이전 이미지 (← / PgUp)")
+        self.btn_next = QtWidgets.QPushButton("다음  ▶")
+        self.btn_next.setProperty("role", "ghost")
+        self.btn_next.setToolTip("다음 이미지 (→ / PgDn)")
+        self.lbl_nav = QtWidgets.QLabel("")
+        self.lbl_nav.setProperty("role", "muted")
+        self.lbl_nav.setMinimumWidth(72)
+        self.lbl_nav.setAlignment(QtCore.Qt.AlignCenter)
+
         self.btn_close = QtWidgets.QPushButton("닫기 (Esc)")
         self.btn_close.setProperty("role", "primary")
 
@@ -181,6 +219,10 @@ class ImageViewerDialog(QtWidgets.QDialog):
         toolbar.addWidget(self.lbl_zoom)
         toolbar.addWidget(self.btn_zoom_in)
         toolbar.addStretch(1)
+        toolbar.addWidget(self.btn_prev)
+        toolbar.addWidget(self.lbl_nav)
+        toolbar.addWidget(self.btn_next)
+        toolbar.addSpacing(8)
         toolbar.addWidget(self.btn_close)
         layout.addLayout(toolbar)
 
@@ -189,7 +231,59 @@ class ImageViewerDialog(QtWidgets.QDialog):
         self.btn_100.clicked.connect(lambda: self._set_zoom(1.0))
         self.btn_zoom_in.clicked.connect(lambda: self._zoom_by(1.25))
         self.btn_zoom_out.clicked.connect(lambda: self._zoom_by(0.8))
+        self.btn_prev.clicked.connect(self._show_prev)
+        self.btn_next.clicked.connect(self._show_next)
         self.btn_close.clicked.connect(self.accept)
+
+    # ---------- navigation ----------
+    def _update_nav_state(self):
+        n = len(self._image_list)
+        self.lbl_nav.setText("%d / %d" % (self._index + 1, n))
+        self.btn_prev.setEnabled(self._index > 0)
+        self.btn_next.setEnabled(self._index < n - 1)
+
+    def _show_prev(self):
+        if self._index > 0:
+            self._goto(self._index - 1)
+
+    def _show_next(self):
+        if self._index < len(self._image_list) - 1:
+            self._goto(self._index + 1)
+
+    def _goto(self, idx: int):
+        if idx < 0 or idx >= len(self._image_list):
+            return
+        path = self._image_list[idx]
+        if not os.path.isfile(path):
+            # 파일 사라짐 → 리스트에서 빼고 같은 인덱스 재시도
+            self._image_list.pop(idx)
+            if not self._image_list:
+                self.accept()
+                return
+            self._goto(min(idx, len(self._image_list) - 1))
+            return
+        self._index = idx
+        self.image_path = path
+        new_pix = self._load_pixmap(path)
+        if new_pix is None:
+            return
+        self._orig_pix = new_pix
+        # 헤더/타이틀 갱신
+        try:
+            size_bytes = os.path.getsize(path)
+        except OSError:
+            size_bytes = 0
+        self.lbl_title.setText(os.path.basename(path))
+        self.lbl_info.setText("%d × %d  ·  %s" % (
+            new_pix.width(), new_pix.height(), self._format_bytes(size_bytes)
+        ))
+        self.setWindowTitle("이미지 뷰어 — " + os.path.basename(path))
+        # Fit 모드 유지 — 새 이미지 적용
+        if self._fit_mode:
+            self._fit_to_window()
+        else:
+            self._set_zoom(self._zoom)
+        self._update_nav_state()
 
     # ---------- zoom / fit ----------
     def _fit_to_window(self):

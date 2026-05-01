@@ -32,17 +32,17 @@ class _LightTheme:
     CANVAS_DARK = "#0F1419"  # LiveView "신호 없음" 배경
     CANVAS_TEXT = "#9CA3AF"
 
-    # 테두리: 매우 옅은 회색
-    BORDER_SUBTLE  = "rgba(15,23,42,0.04)"
-    BORDER_DEFAULT = "rgba(15,23,42,0.08)"
-    BORDER_STRONG  = "rgba(15,23,42,0.14)"
-    BORDER_DEPTH   = "rgba(15,23,42,0.06)"
+    # 테두리: 가독성을 위해 살짝 진하게
+    BORDER_SUBTLE  = "rgba(15,23,42,0.08)"
+    BORDER_DEFAULT = "rgba(15,23,42,0.16)"
+    BORDER_STRONG  = "rgba(15,23,42,0.28)"
+    BORDER_DEPTH   = "rgba(15,23,42,0.12)"
 
-    # 텍스트: 진한 슬레이트 → 옅은 그레이로 단계화
-    TEXT_PRIMARY   = "#111827"
-    TEXT_SECONDARY = "#374151"
-    TEXT_MUTED     = "#6B7280"
-    TEXT_DIM       = "#9CA3AF"
+    # 텍스트: 대비 강화 — slate-900 / 800 / 600 / 500
+    TEXT_PRIMARY   = "#0F172A"   # 거의 검정 — 메인 본문/숫자
+    TEXT_SECONDARY = "#1F2937"   # 보조 본문 — 충분히 진함
+    TEXT_MUTED     = "#4B5563"   # 회색 라벨 — 옛 #6B7280보다 진함
+    TEXT_DIM       = "#6B7280"   # 가장 옅은 텍스트도 이전 muted 수준
 
     # 액센트: 모던 블루 (대시보드 차트 라인 톤)
     ACCENT       = "#3B82F6"
@@ -224,7 +224,7 @@ def apply_theme(app: QtWidgets.QApplication, theme_name: str = "light"):
         _UI_FONT_FAMILY = _pick_font_family()
 
     base = QFont(_UI_FONT_FAMILY)
-    base.setPointSize(10)
+    base.setPointSize(11)   # 10 -> 11 — 가독성 강화 (HR 대시보드 톤)
     base.setStyleStrategy(QFont.PreferAntialias)
     app.setFont(base)
 
@@ -303,10 +303,10 @@ def make_status_dot(color_hex, diameter=8):
     return dot
 
 
-def add_card_shadow(widget, blur=24, y_offset=4, alpha=18):
+def add_card_shadow(widget, blur=26, y_offset=4, alpha=28):
     """U.STRA HR 톤의 부드러운 카드 그림자.
 
-    Light 테마에서 흰 카드를 살짝 띄우는 정도 — alpha 높이면 칙칙해진다.
+    가독성 강화 후에는 카드 경계가 살짝 진해야 부유감이 살아난다.
     """
     shadow = QtWidgets.QGraphicsDropShadowEffect(widget)
     shadow.setBlurRadius(blur)
@@ -346,24 +346,33 @@ def app_qss() -> str:
     QLabel {
         background: transparent;
         color: %(text_secondary)s;
+        font-size: 13px;
     }
-    QLabel[role="muted"]   { color: %(text_muted)s; font-size: 11px; }
-    QLabel[role="value"]   { color: %(accent)s; font-weight: 600; }
+    QLabel[role="muted"]   {
+        color: %(text_muted)s;
+        font-size: 12px;
+        font-weight: 500;
+    }
+    QLabel[role="value"]   {
+        color: %(accent_press)s;
+        font-weight: 700;
+        font-size: 14px;
+    }
     QLabel[role="caption"] {
         color: %(text_muted)s;
-        font-size: 11px;
-        font-weight: 600;
+        font-size: 12px;
+        font-weight: 700;
         padding-bottom: 2px;
     }
     QLabel[role="title"] {
         color: %(text_primary)s;
         font-weight: 800;
-        font-size: 12px;
-        padding: 5px 11px 6px 11px;
+        font-size: 14px;
+        padding: 6px 12px 7px 12px;
         background: %(title_strip)s;
         border: 1px solid %(border_default)s;
         border-left: 3px solid %(accent)s;
-        border-radius: 4px;
+        border-radius: 6px;
     }
 
     /* ============== Group boxes (panel cards with title strip) ============== */
@@ -374,7 +383,7 @@ def app_qss() -> str:
         margin-top: 30px;
         padding: 12px 12px 10px 12px;
         color: %(text_primary)s;
-        font-size: 11px;
+        font-size: 13px;
         font-weight: 700;
     }
     QGroupBox::title {
@@ -407,9 +416,9 @@ def app_qss() -> str:
         border: 1px solid %(border_default)s;
         border-bottom: 1px solid %(border_depth)s;
         border-radius: 6px;
-        padding: 7px 14px;
+        padding: 8px 16px;
         color: %(text_primary)s;
-        font-size: 11px;
+        font-size: 13px;
         font-weight: 600;
         min-height: 22px;
     }
@@ -562,15 +571,15 @@ def app_qss() -> str:
     QTabBar { background: transparent; }
     QTabBar::tab {
         background: %(title_strip)s;
-        color: %(text_muted)s;
-        padding: 8px 22px;
+        color: %(text_secondary)s;
+        padding: 9px 22px;
         border: 1px solid %(border_default)s;
         border-bottom: none;
         border-top-left-radius: 6px;
         border-top-right-radius: 6px;
         margin-right: 3px;
         font-weight: 700;
-        font-size: 11px;
+        font-size: 13px;
     }
     QTabBar::tab:hover {
         background: %(bg_elev_2)s;
@@ -604,9 +613,9 @@ def app_qss() -> str:
         background: %(title_strip)s;
         color: %(text_secondary)s;
         border-top: 1px solid %(border_default)s;
-        padding: 6px 14px;
-        font-size: 11px;
-        font-weight: 500;
+        padding: 7px 14px;
+        font-size: 12px;
+        font-weight: 600;
     }
     QStatusBar::item { border: none; }
 
@@ -651,12 +660,12 @@ def app_qss() -> str:
     }
     QToolButton[role="sidebarTab"] {
         background: transparent;
-        color: %(text_muted)s;
+        color: %(text_secondary)s;
         border: 1px solid transparent;
         border-radius: 8px;
-        padding: 8px 4px;
-        font-size: 11px;
-        font-weight: 600;
+        padding: 10px 4px;
+        font-size: 13px;
+        font-weight: 700;
         text-align: center;
     }
     QToolButton[role="sidebarTab"]:hover {
@@ -717,9 +726,10 @@ def app_qss() -> str:
         background: %(bg_elev_3)s;
         color: %(text_primary)s;
         border: 1px solid %(border_strong)s;
-        padding: 6px 10px;
+        padding: 7px 12px;
         border-radius: 6px;
-        font-size: 11px;
+        font-size: 12px;
+        font-weight: 500;
     }
     """ % {
         "bg_deep":           C.BG_DEEP,

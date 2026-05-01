@@ -673,7 +673,19 @@ class MainWindow(QtWidgets.QMainWindow):
     def _show_image_popup(self, path: str, prefetched_bgr=None):
         if not path or not os.path.isfile(path):
             return
-        dlg = ImageViewerDialog(path, self, prefetched_bgr=prefetched_bgr)
+        # 갤러리 현재 이미지 목록을 같이 넘겨 ←/→ 네비게이션 가능하게 함
+        image_list = []
+        try:
+            for i in range(self.gallery.listw.count()):
+                p = self.gallery.listw.item(i).data(QtCore.Qt.UserRole)
+                if p:
+                    image_list.append(p)
+        except Exception:
+            image_list = [path]
+        dlg = ImageViewerDialog(
+            path, self, prefetched_bgr=prefetched_bgr,
+            image_list=image_list or [path],
+        )
         dlg.exec_()
 
     def _route_image_to_channel(self, path: str, img_bgr):
