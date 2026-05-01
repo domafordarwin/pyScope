@@ -23,7 +23,6 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 
 from ..capture.camera_worker import CameraWorker
 from ..capture.capture_controller import CaptureController
-from ..capture.sequence_repo import guess_seq_dir_from_image
 from ..util.image_convert import crop_bgr
 
 from .live_view import LiveView
@@ -32,7 +31,6 @@ from .sense_panel import SensePanel
 from .capture_panel import CapturePanel
 from .camera_panel import CameraPanel
 from .gallery_panel import GalleryPanel
-from .player_panel import PlayerPanel
 from .header_bar import HeaderBar
 from .image_viewer import ImageViewerDialog
 from .ai_panel import AIPanel
@@ -93,18 +91,16 @@ class MainWindow(QtWidgets.QMainWindow):
         normal_split.addWidget(self.aux_stack)
         normal_split.setSizes([620, 260])
 
-        # 아카이브 풀스크린 페이지: 갤러리(큼) + 플레이어(작음)
-        archive_split = QtWidgets.QSplitter(QtCore.Qt.Horizontal)
-        archive_split.setChildrenCollapsible(False)
-        archive_split.setHandleWidth(8)
-        archive_split.addWidget(self.gallery)
-        archive_split.addWidget(self.player)
-        archive_split.setSizes([1100, 380])  # 갤러리가 화면 대부분 차지
+        # 아카이브 풀스크린 페이지: 갤러리만 (시퀀스 플레이어 제거됨)
+        archive_page = QtWidgets.QWidget()
+        archive_layout = QtWidgets.QVBoxLayout(archive_page)
+        archive_layout.setContentsMargins(0, 0, 0, 0)
+        archive_layout.addWidget(self.gallery)
 
         # 메인 stack: 일반 모드 ↔ 아카이브 풀스크린 모드 전환
         self.main_stack = QtWidgets.QStackedWidget()
         self.main_stack.addWidget(normal_split)   # idx 0 — 라이브/데이터셋/검출
-        self.main_stack.addWidget(archive_split)  # idx 1 — 아카이브
+        self.main_stack.addWidget(archive_page)   # idx 1 — 아카이브 (갤러리 풀스크린)
 
         # 좌측 사이드바 (수직 탭 버튼)
         sidebar = self._build_sidebar()
@@ -174,7 +170,6 @@ class MainWindow(QtWidgets.QMainWindow):
         )
 
         self.gallery.image_selected.connect(self._on_gallery_image_clicked)
-        self.player.frame_selected.connect(self._load_image_to_preview)
 
         # ============ AI inference ============
         self._ai_thread = QtCore.QThread(self)
@@ -251,9 +246,8 @@ class MainWindow(QtWidgets.QMainWindow):
             self.detect_panel.ai_panel.setEnabled(False)
             self.detect_panel.ai_panel.set_status("Hailo NPU 미감지 — 비활성")
 
-        # Gallery / Player
+        # Gallery (시퀀스 플레이어는 제거됨)
         self.gallery = GalleryPanel()
-        self.player  = PlayerPanel()
 
         # 4 채널 미리보기 (하단 보조 영역 — 작게 가로 일렬)
         self.prev_bf     = PreviewView("BF · 명시야")
@@ -673,12 +667,7 @@ class MainWindow(QtWidgets.QMainWindow):
         self._route_image_to_channel(path, img_bgr)
         self.statusBar().showMessage("불러옴: %s" % path)
 
-        seq_dir = guess_seq_dir_from_image(path)
-        if seq_dir:
-            self.player.load_sequence(seq_dir)
-            # 새 레이아웃에선 갤러리(좌) / 플레이어(우)가 동시에 보이므로
-            # 별도 탭 전환 호출이 필요 없음.
-
+        # 시퀀스 플레이어가 제거되었으므로 시퀀스 자동 로드는 하지 않는다.
         self._show_image_popup(path, prefetched_bgr=img_bgr)
 
     def _show_image_popup(self, path: str, prefetched_bgr=None):
@@ -686,18 +675,6 @@ class MainWindow(QtWidgets.QMainWindow):
             return
         dlg = ImageViewerDialog(path, self, prefetched_bgr=prefetched_bgr)
         dlg.exec_()
-
-    def _load_image_to_preview(self, path: str):
-        if not path or not os.path.isfile(path):
-            return
-        img = cv2.imread(path, cv2.IMREAD_UNCHANGED)
-        if img is None:
-            return
-        if img.ndim == 2:
-            img_bgr = cv2.cvtColor(img, cv2.COLOR_GRAY2BGR)
-        else:
-            img_bgr = img
-        self._route_image_to_channel(path, img_bgr)
 
     def _route_image_to_channel(self, path: str, img_bgr):
         name = os.path.basename(path).lower()

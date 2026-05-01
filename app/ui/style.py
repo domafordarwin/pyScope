@@ -20,41 +20,46 @@ from PyQt5.QtGui import QColor, QFont, QPalette
 # Theme palettes
 # =====================================================================
 class _LightTheme:
-    """Bright Leica/Zeiss-inspired instrument console."""
-    BG_DEEP    = "#bfc4cb"
-    BG_BASE    = "#cad0d6"
-    BG_ELEV_1  = "#f0f3f6"
-    BG_ELEV_2  = "#f8fafc"
-    BG_ELEV_3  = "#ffffff"
-    INPUT_BG   = "#dde1e6"
-    TITLE_STRIP = "#dce1e6"
-    CANVAS_DARK = "#1a1d22"
-    CANVAS_TEXT = "#828892"
+    """U.STRA HR-inspired clean white/soft-grey dashboard."""
+    # 배경: 거의 흰색의 부드러운 그레이 — 카드만 순백
+    BG_DEEP    = "#EEF1F5"   # 윈도우 외곽
+    BG_BASE    = "#F4F6F9"   # 본문 배경
+    BG_ELEV_1  = "#FFFFFF"   # 카드/패널 (순백)
+    BG_ELEV_2  = "#FFFFFF"
+    BG_ELEV_3  = "#FFFFFF"   # 버튼 idle
+    INPUT_BG   = "#F8FAFC"   # 입력 필드
+    TITLE_STRIP = "#FFFFFF"  # 헤더/툴바 — 화이트
+    CANVAS_DARK = "#0F1419"  # LiveView "신호 없음" 배경
+    CANVAS_TEXT = "#9CA3AF"
 
-    BORDER_SUBTLE  = "rgba(0,0,0,0.12)"
-    BORDER_DEFAULT = "rgba(0,0,0,0.22)"
-    BORDER_STRONG  = "rgba(0,0,0,0.35)"
-    BORDER_DEPTH   = "rgba(0,0,0,0.32)"
+    # 테두리: 매우 옅은 회색
+    BORDER_SUBTLE  = "rgba(15,23,42,0.04)"
+    BORDER_DEFAULT = "rgba(15,23,42,0.08)"
+    BORDER_STRONG  = "rgba(15,23,42,0.14)"
+    BORDER_DEPTH   = "rgba(15,23,42,0.06)"
 
-    TEXT_PRIMARY   = "#15191f"
-    TEXT_SECONDARY = "#3e4651"
-    TEXT_MUTED     = "#626973"
-    TEXT_DIM       = "#8a919a"
+    # 텍스트: 진한 슬레이트 → 옅은 그레이로 단계화
+    TEXT_PRIMARY   = "#111827"
+    TEXT_SECONDARY = "#374151"
+    TEXT_MUTED     = "#6B7280"
+    TEXT_DIM       = "#9CA3AF"
 
-    ACCENT       = "#1f6aa6"
-    ACCENT_HOVER = "#2a7bbb"
-    ACCENT_PRESS = "#155485"
-    ACCENT_GLOW  = "rgba(31,106,166,0.20)"
-    ACCENT_DEEP  = "rgba(31,106,166,0.08)"
+    # 액센트: 모던 블루 (대시보드 차트 라인 톤)
+    ACCENT       = "#3B82F6"
+    ACCENT_HOVER = "#60A5FA"
+    ACCENT_PRESS = "#2563EB"
+    ACCENT_GLOW  = "rgba(59,130,246,0.10)"
+    ACCENT_DEEP  = "rgba(59,130,246,0.04)"
 
-    AMBER  = "#a06a1f"
-    GREEN  = "#3f7843"
-    RED    = "#9c3e3e"
-    PURPLE = "#5d4f99"
+    # 시맨틱: 막대=주황, 게이지=초록 (HR 대시보드 톤)
+    AMBER  = "#F59E0B"
+    GREEN  = "#10B981"
+    RED    = "#EF4444"
+    PURPLE = "#8B5CF6"
 
-    HIGHLIGHT_TEXT   = "#ffffff"
-    PRIMARY_BTN_TEXT = "#ffffff"
-    PILL_BG          = "rgba(0,0,0,0.04)"
+    HIGHLIGHT_TEXT   = "#FFFFFF"
+    PRIMARY_BTN_TEXT = "#FFFFFF"
+    PILL_BG          = "rgba(15,23,42,0.04)"
 
 
 class _BlueTheme:
@@ -141,9 +146,9 @@ THEMES = {
 
 # (label, swatch sample color) — used by the header theme switcher
 THEME_LABELS = (
-    ("light", "라이트 회색", "#cad0d6"),
-    ("blue",  "딥 블루",     "#0f131a"),
-    ("black", "블랙",         "#1c1c1c"),
+    ("light", "라이트 화이트", "#F4F6F9"),
+    ("blue",  "딥 블루",       "#0f131a"),
+    ("black", "블랙",           "#1c1c1c"),
 )
 
 
@@ -298,7 +303,11 @@ def make_status_dot(color_hex, diameter=8):
     return dot
 
 
-def add_card_shadow(widget, blur=22, y_offset=3, alpha=55):
+def add_card_shadow(widget, blur=24, y_offset=4, alpha=18):
+    """U.STRA HR 톤의 부드러운 카드 그림자.
+
+    Light 테마에서 흰 카드를 살짝 띄우는 정도 — alpha 높이면 칙칙해진다.
+    """
     shadow = QtWidgets.QGraphicsDropShadowEffect(widget)
     shadow.setBlurRadius(blur)
     shadow.setOffset(0, y_offset)
@@ -361,7 +370,7 @@ def app_qss() -> str:
     QGroupBox {
         background: %(bg_elev_1)s;
         border: 1px solid %(border_default)s;
-        border-radius: 8px;
+        border-radius: 12px;
         margin-top: 30px;
         padding: 12px 12px 10px 12px;
         color: %(text_primary)s;
@@ -663,12 +672,12 @@ def app_qss() -> str:
     QWidget[role="surface"] {
         background: %(bg_elev_1)s;
         border: 1px solid %(border_default)s;
-        border-radius: 8px;
+        border-radius: 12px;
     }
     QLabel[role="canvas"] {
         background: %(canvas_dark)s;
         border: 1px solid %(border_default)s;
-        border-radius: 8px;
+        border-radius: 12px;
         color: %(canvas_text)s;
     }
 
