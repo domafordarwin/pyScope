@@ -78,21 +78,27 @@ class MainWindow(QtWidgets.QMainWindow):
         live_area = self._build_live_area()
         main_splitter.addWidget(live_area)
 
-        # 아래: 4개 작업 탭
+        # 아래: 4개 작업 탭 (tabBar 는 좌측 사이드바로 대체 — hide)
         self.tabs = QtWidgets.QTabWidget()
         self.tabs.setMovable(False)
-        self.tabs.setDocumentMode(False)
+        self.tabs.setDocumentMode(True)
         self._build_tabs()
+        self.tabs.tabBar().hide()
         main_splitter.addWidget(self.tabs)
 
         # 비율: LiveView 60% / Tabs 40%
         main_splitter.setSizes([520, 360])
 
-        # 콘텐츠 컨테이너 (margin 주기 위함)
+        # 좌측 사이드바 (수직 탭 버튼)
+        sidebar = self._build_sidebar()
+
+        # 콘텐츠 컨테이너 — sidebar + main_splitter (좌우 분할)
         content_wrap = QtWidgets.QWidget()
         content_layout = QtWidgets.QHBoxLayout(content_wrap)
-        content_layout.setContentsMargins(14, 10, 14, 10)
-        content_layout.addWidget(main_splitter)
+        content_layout.setContentsMargins(0, 0, 14, 10)
+        content_layout.setSpacing(10)
+        content_layout.addWidget(sidebar)
+        content_layout.addWidget(main_splitter, 1)
         shell.addWidget(content_wrap, 1)
 
         # ============ Status bar ============
@@ -382,6 +388,52 @@ class MainWindow(QtWidgets.QMainWindow):
         self.tabs.addTab(archive_tab, "📁  아카이브")
 
     # ============================================================
+    # Sidebar (좌측 수직 탭 — 4개 작업 탭 선택)
+    # ============================================================
+    def _build_sidebar(self):
+        sidebar = QtWidgets.QFrame()
+        sidebar.setProperty("role", "sidebar")
+        sidebar.setAttribute(QtCore.Qt.WA_StyledBackground, True)
+        sidebar.setFixedWidth(96)
+
+        col = QtWidgets.QVBoxLayout(sidebar)
+        col.setContentsMargins(8, 14, 8, 14)
+        col.setSpacing(6)
+
+        items = [
+            ("📷", "라이브"),
+            ("🏷️", "데이터셋"),
+            ("🤖", "검출"),
+            ("📁", "아카이브"),
+        ]
+        self._sidebar_btns = []
+        for i, (icon, name) in enumerate(items):
+            btn = QtWidgets.QToolButton()
+            btn.setText(f"{icon}\n{name}")
+            btn.setCheckable(True)
+            btn.setAutoExclusive(True)
+            btn.setProperty("role", "sidebarTab")
+            btn.setToolButtonStyle(QtCore.Qt.ToolButtonTextOnly)
+            btn.setMinimumHeight(64)
+            btn.setSizePolicy(QtWidgets.QSizePolicy.Expanding,
+                              QtWidgets.QSizePolicy.Fixed)
+            btn.clicked.connect(
+                lambda _c=False, idx=i: self._select_tab(idx)
+            )
+            col.addWidget(btn)
+            self._sidebar_btns.append(btn)
+
+        self._sidebar_btns[0].setChecked(True)
+        col.addStretch(1)
+        return sidebar
+
+    def _select_tab(self, idx: int):
+        """사이드바 버튼 → 탭 인덱스 동기화."""
+        self.tabs.setCurrentIndex(idx)
+        if 0 <= idx < len(self._sidebar_btns):
+            self._sidebar_btns[idx].setChecked(True)
+
+    # ============================================================
     # Toolbar
     # ============================================================
     def _build_toolbar(self):
@@ -478,11 +530,11 @@ class MainWindow(QtWidgets.QMainWindow):
         sc("L",             lambda: self.btn_roi_lock.toggle())
         sc("Ctrl+Shift+S",  self._capture_dpc_and_save_all)
         sc("Ctrl+D",        self._capture_dpc_only)
-        # 탭 단축키
-        sc("Ctrl+1",        lambda: self.tabs.setCurrentIndex(0))  # 라이브
-        sc("Ctrl+2",        lambda: self.tabs.setCurrentIndex(1))  # 데이터셋
-        sc("Ctrl+3",        lambda: self.tabs.setCurrentIndex(2))  # 검출
-        sc("Ctrl+4",        lambda: self.tabs.setCurrentIndex(3))  # 아카이브
+        # 탭 단축키 (사이드바 버튼도 동기화)
+        sc("Ctrl+1",        lambda: self._select_tab(0))  # 라이브
+        sc("Ctrl+2",        lambda: self._select_tab(1))  # 데이터셋
+        sc("Ctrl+3",        lambda: self._select_tab(2))  # 검출
+        sc("Ctrl+4",        lambda: self._select_tab(3))  # 아카이브
 
     # ============================================================
     # Camera

@@ -636,6 +636,30 @@ def app_qss() -> str:
         background: %(title_strip)s;
         border-bottom: 1px solid %(border_default)s;
     }
+    QFrame[role="sidebar"] {
+        background: %(title_strip)s;
+        border-right: 1px solid %(border_default)s;
+    }
+    QToolButton[role="sidebarTab"] {
+        background: transparent;
+        color: %(text_muted)s;
+        border: 1px solid transparent;
+        border-radius: 8px;
+        padding: 8px 4px;
+        font-size: 11px;
+        font-weight: 600;
+        text-align: center;
+    }
+    QToolButton[role="sidebarTab"]:hover {
+        background: %(bg_elev_2)s;
+        color: %(text_secondary)s;
+    }
+    QToolButton[role="sidebarTab"]:checked {
+        background: %(accent_glow)s;
+        color: %(accent_press)s;
+        border: 1px solid %(accent)s;
+        font-weight: 800;
+    }
     QWidget[role="surface"] {
         background: %(bg_elev_1)s;
         border: 1px solid %(border_default)s;
