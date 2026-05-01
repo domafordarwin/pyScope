@@ -21,8 +21,8 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 from ..capture.sequence_repo import list_all_images, make_thumb_label
 
 
-THUMB_W, THUMB_H = 120, 84
-GALLERY_LIMIT = 50          # show the last N PNGs (newest first)
+THUMB_W, THUMB_H = 160, 110
+GALLERY_LIMIT = 200         # show the last N PNGs (newest first)
 REFRESH_DEBOUNCE_MS = 200
 
 
@@ -71,11 +71,16 @@ class GalleryPanel(QtWidgets.QWidget):
         top = QtWidgets.QHBoxLayout()
         self.lbl = QtWidgets.QLabel("갤러리")
         self.lbl.setProperty("role", "title")
+        self.btn_delete = QtWidgets.QPushButton("🗑  선택 삭제")
+        self.btn_delete.setProperty("role", "danger")
+        self.btn_delete.setFixedWidth(120)
+        self.btn_delete.setEnabled(False)
         self.btn_refresh = QtWidgets.QPushButton("새로고침")
         self.btn_refresh.setProperty("role", "ghost")
         self.btn_refresh.setFixedWidth(100)
         top.addWidget(self.lbl)
         top.addStretch(1)
+        top.addWidget(self.btn_delete)
         top.addWidget(self.btn_refresh)
         root.addLayout(top)
 
@@ -83,12 +88,23 @@ class GalleryPanel(QtWidgets.QWidget):
         self.listw.setViewMode(QtWidgets.QListView.IconMode)
         self.listw.setResizeMode(QtWidgets.QListView.Adjust)
         self.listw.setMovement(QtWidgets.QListView.Static)
+        # 그리드 모드: 가로/세로 모두 영역 채워 wrap
         self.listw.setFlow(QtWidgets.QListView.LeftToRight)
-        self.listw.setWrapping(False)
+        self.listw.setWrapping(True)
+        self.listw.setUniformItemSizes(True)
         self.listw.setIconSize(QtCore.QSize(THUMB_W, THUMB_H))
+        self.listw.setGridSize(QtCore.QSize(THUMB_W + 24, THUMB_H + 40))
         self.listw.setSpacing(8)
-        self.listw.setFixedHeight(THUMB_H + 60)
-        root.addWidget(self.listw)
+        # 다중 선택 + 삭제
+        self.listw.setSelectionMode(
+            QtWidgets.QAbstractItemView.ExtendedSelection
+        )
+        self.listw.setContextMenuPolicy(QtCore.Qt.CustomContextMenu)
+        # 영역 채우기 (FixedHeight 제거 — 부모 레이아웃에 맞춰 확장)
+        self.listw.setSizePolicy(
+            QtWidgets.QSizePolicy.Expanding, QtWidgets.QSizePolicy.Expanding
+        )
+        root.addWidget(self.listw, 1)
 
         self._output_dir = os.path.expanduser("~/RAIM_OUTPUT")
         self._items_by_path = {}  # path -> QListWidgetItem (for async thumb update)
@@ -108,7 +124,15 @@ class GalleryPanel(QtWidgets.QWidget):
 
         # ---- signals ----
         self.btn_refresh.clicked.connect(self.refresh)
+        self.btn_delete.clicked.connect(self._delete_selected)
         self.listw.itemClicked.connect(self._on_item_clicked)
+        self.listw.itemSelectionChanged.connect(self._update_delete_btn)
+        self.listw.customContextMenuRequested.connect(self._show_context_menu)
+        # Delete 키로도 삭제
+        QtWidgets.QShortcut(
+            QtGui.QKeySequence(QtCore.Qt.Key_Delete), self.listw,
+            activated=self._delete_selected,
+        )
 
     # ---------- public API ----------
     def set_output_dir(self, outdir: str):
@@ -159,6 +183,76 @@ class GalleryPanel(QtWidgets.QWidget):
         p = item.data(QtCore.Qt.UserRole)
         if p:
             self.image_selected.emit(p)
+
+    # ---------- selection / delete ----------
+    def _update_delete_btn(self):
+        self.btn_delete.setEnabled(bool(self.listw.selectedItems()))
+
+    def _show_context_menu(self, pos: QtCore.QPoint):
+        item = self.listw.itemAt(pos)
+        if item is None:
+            return
+        # 클릭한 항목이 선택에 없으면 단독 선택으로 전환
+        if not item.isSelected():
+            self.listw.clearSelection()
+            item.setSelected(True)
+        menu = QtWidgets.QMenu(self)
+        act_open = menu.addAction("🔍  열기")
+        act_show = menu.addAction("📂  탐색기에서 보기")
+        menu.addSeparator()
+        act_del = menu.addAction("🗑  삭제")
+        act = menu.exec_(self.listw.mapToGlobal(pos))
+        if act is act_open:
+            self._on_item_clicked(item)
+        elif act is act_show:
+            self._reveal_in_explorer(item.data(QtCore.Qt.UserRole))
+        elif act is act_del:
+            self._delete_selected()
+
+    def _reveal_in_explorer(self, path: str):
+        if not path or not os.path.exists(path):
+            return
+        url = QtCore.QUrl.fromLocalFile(os.path.dirname(path))
+        QtGui.QDesktopServices.openUrl(url)
+
+    def _delete_selected(self):
+        items = self.listw.selectedItems()
+        if not items:
+            return
+        paths = [it.data(QtCore.Qt.UserRole) for it in items]
+        paths = [p for p in paths if p]
+        if not paths:
+            return
+        n = len(paths)
+        first = os.path.basename(paths[0])
+        msg = (
+            "이미지 1장을 삭제할까요?\n\n%s" % first if n == 1
+            else "선택한 %d장을 모두 삭제할까요?\n첫 번째: %s\n\n"
+                 "이 작업은 되돌릴 수 없습니다." % (n, first)
+        )
+        reply = QtWidgets.QMessageBox.question(
+            self, "갤러리 — 이미지 삭제", msg,
+            QtWidgets.QMessageBox.Yes | QtWidgets.QMessageBox.No,
+            QtWidgets.QMessageBox.No,
+        )
+        if reply != QtWidgets.QMessageBox.Yes:
+            return
+
+        deleted = 0
+        for p in paths:
+            try:
+                if os.path.isfile(p):
+                    os.remove(p)
+                    deleted += 1
+                self._items_by_path.pop(p, None)
+            except OSError:
+                pass
+        self.refresh()
+        if deleted:
+            QtWidgets.QToolTip.showText(
+                self.btn_delete.mapToGlobal(QtCore.QPoint(0, -28)),
+                "%d장 삭제됨" % deleted, self.btn_delete,
+            )
 
     def closeEvent(self, ev):
         # Tear down worker thread cleanly

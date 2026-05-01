@@ -71,7 +71,7 @@ class MainWindow(QtWidgets.QMainWindow):
 
         # ---- 두 QStackedWidget: 좌측 메뉴(컨트롤) / 하단 보조 콘텐츠 ----
         # menu_stack : LiveView 좌측에 — 탭별 컨트롤 슬라이더/패널
-        # aux_stack  : 화면 하단에 — 탭별 보조 콘텐츠 (DPC 채널 / 가이드 / 갤러리)
+        # aux_stack  : 화면 하단에 — 탭별 보조 콘텐츠 (DPC 채널 / 가이드)
         self.menu_stack = QtWidgets.QStackedWidget()
         self.aux_stack  = QtWidgets.QStackedWidget()
         self._build_panels()  # 4 탭 × (menu page + aux page)
@@ -85,24 +85,37 @@ class MainWindow(QtWidgets.QMainWindow):
         top_h.addWidget(live_area)
         top_h.setSizes([400, 1000])  # 메뉴 좁게, 카메라 넓게
 
-        # 메인 세로 분할: 상단(메뉴+LiveView) + 하단(보조 콘텐츠)
-        main_splitter = QtWidgets.QSplitter(QtCore.Qt.Vertical)
-        main_splitter.setChildrenCollapsible(False)
-        main_splitter.setHandleWidth(8)
-        main_splitter.addWidget(top_h)
-        main_splitter.addWidget(self.aux_stack)
-        main_splitter.setSizes([620, 260])  # 카메라/메뉴 큼, 보조 작음
+        # 일반 모드 페이지: 상단(메뉴+LiveView) + 하단(보조)
+        normal_split = QtWidgets.QSplitter(QtCore.Qt.Vertical)
+        normal_split.setChildrenCollapsible(False)
+        normal_split.setHandleWidth(8)
+        normal_split.addWidget(top_h)
+        normal_split.addWidget(self.aux_stack)
+        normal_split.setSizes([620, 260])
+
+        # 아카이브 풀스크린 페이지: 갤러리(큼) + 플레이어(작음)
+        archive_split = QtWidgets.QSplitter(QtCore.Qt.Horizontal)
+        archive_split.setChildrenCollapsible(False)
+        archive_split.setHandleWidth(8)
+        archive_split.addWidget(self.gallery)
+        archive_split.addWidget(self.player)
+        archive_split.setSizes([1100, 380])  # 갤러리가 화면 대부분 차지
+
+        # 메인 stack: 일반 모드 ↔ 아카이브 풀스크린 모드 전환
+        self.main_stack = QtWidgets.QStackedWidget()
+        self.main_stack.addWidget(normal_split)   # idx 0 — 라이브/데이터셋/검출
+        self.main_stack.addWidget(archive_split)  # idx 1 — 아카이브
 
         # 좌측 사이드바 (수직 탭 버튼)
         sidebar = self._build_sidebar()
 
-        # 콘텐츠 컨테이너 — sidebar + main_splitter (좌우 분할)
+        # 콘텐츠 컨테이너 — sidebar + main_stack
         content_wrap = QtWidgets.QWidget()
         content_layout = QtWidgets.QHBoxLayout(content_wrap)
         content_layout.setContentsMargins(0, 0, 14, 10)
         content_layout.setSpacing(10)
         content_layout.addWidget(sidebar)
-        content_layout.addWidget(main_splitter, 1)
+        content_layout.addWidget(self.main_stack, 1)
         shell.addWidget(content_wrap, 1)
 
         # ============ Status bar ============
@@ -316,27 +329,11 @@ class MainWindow(QtWidgets.QMainWindow):
         self.aux_stack.addWidget(det_aux)
 
         # ---- 페이지 4: 아카이브 ----
-        # 메뉴 (좌측 상단): 갤러리 (썸네일 — 좁은 영역)
-        arc_menu = QtWidgets.QWidget()
-        arc_menu_col = QtWidgets.QVBoxLayout(arc_menu)
-        arc_menu_col.setContentsMargins(8, 8, 8, 8)
-        arc_menu_col.setSpacing(6)
-        arc_menu_title = QtWidgets.QLabel("🖼️  갤러리")
-        arc_menu_title.setProperty("role", "title")
-        arc_menu_col.addWidget(arc_menu_title)
-        arc_menu_col.addWidget(self.gallery, 1)
-        # 보조 (하단): 플레이어 (시퀀스 프레임 재생)
-        arc_aux = QtWidgets.QWidget()
-        arc_aux_col = QtWidgets.QVBoxLayout(arc_aux)
-        arc_aux_col.setContentsMargins(8, 4, 8, 8)
-        arc_aux_col.setSpacing(6)
-        arc_aux_title = QtWidgets.QLabel("▶️  플레이어")
-        arc_aux_title.setProperty("role", "title")
-        arc_aux_col.addWidget(arc_aux_title)
-        arc_aux_col.addWidget(self.player, 1)
-
-        self.menu_stack.addWidget(arc_menu)
-        self.aux_stack.addWidget(arc_aux)
+        # 갤러리/플레이어는 main_stack 의 archive_split (풀스크린)에서 직접
+        # 표시되므로 여기엔 placeholder 만 추가 (인덱스 정합성용 — 실제로는
+        # main_stack 이 archive page 로 전환되어 보이지 않음).
+        self.menu_stack.addWidget(QtWidgets.QWidget())
+        self.aux_stack.addWidget(QtWidgets.QWidget())
 
     def _wrap_scroll(self, widgets):
         inner = QtWidgets.QWidget()
@@ -409,9 +406,15 @@ class MainWindow(QtWidgets.QMainWindow):
         return sidebar
 
     def _select_tab(self, idx: int):
-        """사이드바 버튼 → menu/aux stack 동시 전환."""
-        self.menu_stack.setCurrentIndex(idx)
-        self.aux_stack.setCurrentIndex(idx)
+        """사이드바 버튼 → 메인 모드(일반/아카이브) + menu/aux stack 동기화."""
+        if idx == 3:
+            # 아카이브: 갤러리 + 플레이어 풀스크린
+            self.main_stack.setCurrentIndex(1)
+        else:
+            # 라이브 / 데이터셋 / 검출: 일반 모드
+            self.main_stack.setCurrentIndex(0)
+            self.menu_stack.setCurrentIndex(idx)
+            self.aux_stack.setCurrentIndex(idx)
         if 0 <= idx < len(self._sidebar_btns):
             self._sidebar_btns[idx].setChecked(True)
 
