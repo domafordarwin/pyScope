@@ -69,28 +69,29 @@ class MainWindow(QtWidgets.QMainWindow):
         self.toolbar = self._build_toolbar()
         shell.addWidget(self.toolbar)
 
-        # ---- 두 개의 QStackedWidget: 좌(LiveView 아래 컨트롤) / 우(보조 콘텐츠) ----
-        # 사이드바 탭 버튼이 두 stack 의 currentIndex 를 동시에 전환
-        self.left_stack  = QtWidgets.QStackedWidget()
-        self.right_stack = QtWidgets.QStackedWidget()
-        self._build_panels()  # 4 탭 × (left page + right page)
+        # ---- 두 QStackedWidget: 좌측 메뉴(컨트롤) / 하단 보조 콘텐츠 ----
+        # menu_stack : LiveView 좌측에 — 탭별 컨트롤 슬라이더/패널
+        # aux_stack  : 화면 하단에 — 탭별 보조 콘텐츠 (DPC 채널 / 가이드 / 갤러리)
+        self.menu_stack = QtWidgets.QStackedWidget()
+        self.aux_stack  = QtWidgets.QStackedWidget()
+        self._build_panels()  # 4 탭 × (menu page + aux page)
 
-        # 좌측 컬럼: LiveView (위) + left_stack (아래)
+        # 상단: 좌(메뉴 컨트롤) + 우(LiveView 큼)
         live_area = self._build_live_area()
-        left_column = QtWidgets.QSplitter(QtCore.Qt.Vertical)
-        left_column.setChildrenCollapsible(False)
-        left_column.setHandleWidth(8)
-        left_column.addWidget(live_area)
-        left_column.addWidget(self.left_stack)
-        left_column.setSizes([520, 380])
+        top_h = QtWidgets.QSplitter(QtCore.Qt.Horizontal)
+        top_h.setChildrenCollapsible(False)
+        top_h.setHandleWidth(8)
+        top_h.addWidget(self.menu_stack)
+        top_h.addWidget(live_area)
+        top_h.setSizes([400, 1000])  # 메뉴 좁게, 카메라 넓게
 
-        # 메인 가로 분할: 좌측 컬럼 + 우측 보조 콘텐츠
-        main_splitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal)
+        # 메인 세로 분할: 상단(메뉴+LiveView) + 하단(보조 콘텐츠)
+        main_splitter = QtWidgets.QSplitter(QtCore.Qt.Vertical)
         main_splitter.setChildrenCollapsible(False)
         main_splitter.setHandleWidth(8)
-        main_splitter.addWidget(left_column)
-        main_splitter.addWidget(self.right_stack)
-        main_splitter.setSizes([720, 680])  # 좌 ≈ 우 (사용자 화면 폭 따라)
+        main_splitter.addWidget(top_h)
+        main_splitter.addWidget(self.aux_stack)
+        main_splitter.setSizes([620, 260])  # 카메라/메뉴 큼, 보조 작음
 
         # 좌측 사이드바 (수직 탭 버튼)
         sidebar = self._build_sidebar()
@@ -221,8 +222,8 @@ class MainWindow(QtWidgets.QMainWindow):
         return wrap
 
     # ============================================================
-    # Panels — 각 탭을 (좌측 컨트롤 / 우측 보조) 두 페이지로 분리.
-    # left_stack 은 LiveView 아래에, right_stack 은 우측 컬럼에 배치된다.
+    # Panels — 각 탭을 (메뉴 컨트롤 / 보조 콘텐츠) 두 페이지로 분리.
+    # menu_stack 은 LiveView 좌측에, aux_stack 은 화면 하단에 배치된다.
     # ============================================================
     def _build_panels(self):
         # 패널 인스턴스 모두 생성 (시그널 연결을 __init__에서 처리하기 위함)
@@ -241,105 +242,101 @@ class MainWindow(QtWidgets.QMainWindow):
         self.gallery = GalleryPanel()
         self.player  = PlayerPanel()
 
-        # 4 채널 미리보기 (라이브 탭 우측에 2x2 그리드)
+        # 4 채널 미리보기 (하단 보조 영역 — 작게 가로 일렬)
         self.prev_bf     = PreviewView("BF · 명시야")
         self.prev_dpcx   = PreviewView("DPCₓ · 수평")
         self.prev_dpcy   = PreviewView("DPCᵧ · 수직")
         self.prev_pseudo = PreviewView("합성 RGB")
         for prev in (self.prev_bf, self.prev_dpcx,
                      self.prev_dpcy, self.prev_pseudo):
-            prev.setMinimumSize(180, 130)
+            prev.setMinimumSize(150, 110)
+            prev.setMaximumHeight(220)
 
         # ---- 페이지 1: 라이브 ----
-        # 좌(LiveView 아래): Sense + Capture + Camera 스크롤
-        live_left = self._wrap_scroll([
+        # 메뉴 (좌측 상단): Sense + Capture + Camera 슬라이더 스크롤
+        live_menu = self._wrap_scroll([
             self.sense_panel, self.capture_panel, self.camera_panel
         ])
-        # 우: DPC 4채널 (2x2 그리드 — 우측 컬럼 폭이 줄었으므로)
-        live_right = QtWidgets.QWidget()
-        live_right_col = QtWidgets.QVBoxLayout(live_right)
-        live_right_col.setContentsMargins(8, 8, 8, 8)
-        live_right_col.setSpacing(8)
+        # 보조 (하단): DPC 4채널 가로 일렬 (작게)
+        live_aux = QtWidgets.QWidget()
+        live_aux_col = QtWidgets.QVBoxLayout(live_aux)
+        live_aux_col.setContentsMargins(8, 4, 8, 8)
+        live_aux_col.setSpacing(6)
         ch_head = QtWidgets.QLabel("DPC 채널 — BF · DPCₓ · DPCᵧ · 합성 RGB")
         ch_head.setProperty("role", "title")
-        live_right_col.addWidget(ch_head)
-        grid = QtWidgets.QGridLayout()
-        grid.setSpacing(8)
-        grid.addWidget(self.prev_bf,     0, 0)
-        grid.addWidget(self.prev_dpcx,   0, 1)
-        grid.addWidget(self.prev_dpcy,   1, 0)
-        grid.addWidget(self.prev_pseudo, 1, 1)
-        live_right_col.addLayout(grid, 1)
-        self.left_stack.addWidget(live_left)
-        self.right_stack.addWidget(live_right)
+        live_aux_col.addWidget(ch_head)
+        ch_row = QtWidgets.QHBoxLayout()
+        ch_row.setSpacing(8)
+        ch_row.addWidget(self.prev_bf, 1)
+        ch_row.addWidget(self.prev_dpcx, 1)
+        ch_row.addWidget(self.prev_dpcy, 1)
+        ch_row.addWidget(self.prev_pseudo, 1)
+        live_aux_col.addLayout(ch_row, 1)
+        self.menu_stack.addWidget(live_menu)
+        self.aux_stack.addWidget(live_aux)
 
         # ---- 페이지 2: 데이터셋 ----
-        # 좌: dataset_panel 스크롤 (클래스 선택 + ROI + 라벨 누적)
-        ds_left = QtWidgets.QScrollArea()
-        ds_left.setWidget(self.dataset_panel)
-        ds_left.setWidgetResizable(True)
-        ds_left.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
-        ds_left.setFrameShape(QtWidgets.QFrame.NoFrame)
-        # 우: 워크플로우 안내 카드
-        ds_right = self._make_card(
+        # 메뉴: dataset_panel (클래스 선택 + ROI + 라벨 누적)
+        ds_menu = QtWidgets.QScrollArea()
+        ds_menu.setWidget(self.dataset_panel)
+        ds_menu.setWidgetResizable(True)
+        ds_menu.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        ds_menu.setFrameShape(QtWidgets.QFrame.NoFrame)
+        # 보조 (하단): 라벨링 워크플로우 가이드 카드
+        ds_aux = self._make_card(
             "📋  라벨링 워크플로우",
-            "1. 라이브뷰에서 분열기를 발견하면 마우스로 ROI를 드래그합니다.\n\n"
-            "2. 좌측 패널에서 알맞은 클래스(전기/중기/후기/말기 등)를 선택합니다.\n\n"
-            "3. ‘박스 추가’ 버튼으로 현재 ROI를 라벨로 누적합니다.\n"
-            "   같은 프레임에서 여러 박스를 추가할 수 있습니다.\n\n"
-            "4. ‘스냅샷 + 라벨 저장’ 버튼으로 이미지 + COCO 라벨을 저장합니다.\n\n"
-            "5. 충분히 모았으면(클래스당 30+장 권장) ‘YOLO 형식으로 export’로\n"
-            "   Ultralytics 학습용 폴더를 생성합니다.\n\n"
-            "💡 Ctrl+L: ROI 잠금 / Space: 카메라 / B,D,O: 조명 단축키"
+            "1. 라이브뷰에서 분열기를 발견하면 마우스로 ROI를 드래그   "
+            "2. 좌측 패널에서 클래스(전기/중기/후기/말기 등) 선택   "
+            "3. ‘박스 추가’로 현재 ROI를 라벨로 누적   "
+            "4. ‘스냅샷 + 라벨 저장’으로 이미지 + COCO 저장   "
+            "5. 클래스당 30+장 모이면 ‘YOLO 형식 export’로 학습 폴더 생성   "
+            "💡 Ctrl+L: ROI 잠금 · Space: 카메라 · B/D/O: 조명"
         )
-        self.left_stack.addWidget(ds_left)
-        self.right_stack.addWidget(ds_right)
+        self.menu_stack.addWidget(ds_menu)
+        self.aux_stack.addWidget(ds_aux)
 
         # ---- 페이지 3: 검출 ----
-        # 좌: detect_panel 스크롤 (AI 추론 컨트롤 + 클래스 카운트)
-        det_left = QtWidgets.QScrollArea()
-        det_left.setWidget(self.detect_panel)
-        det_left.setWidgetResizable(True)
-        det_left.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
-        det_left.setFrameShape(QtWidgets.QFrame.NoFrame)
-        # 우: 분열 단계 가이드
-        det_right = self._make_card(
+        # 메뉴: detect_panel (AI 추론 컨트롤 + 클래스 카운트)
+        det_menu = QtWidgets.QScrollArea()
+        det_menu.setWidget(self.detect_panel)
+        det_menu.setWidgetResizable(True)
+        det_menu.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        det_menu.setFrameShape(QtWidgets.QFrame.NoFrame)
+        # 보조 (하단): 분열 단계 가이드 카드
+        det_aux = self._make_card(
             "🔬  양파 체세포 분열 단계",
-            "• 간기 (Interphase) — 분열 전, 핵 안에 염색사 산재\n\n"
-            "• 전기 (Prophase) — 염색사 응축, 핵막 사라짐\n\n"
-            "• 중기 (Metaphase) — 염색체가 적도판에 정렬 ⭐ 가장 보기 좋음\n\n"
-            "• 후기 (Anaphase) — 염색분체 양극 분리\n\n"
-            "• 말기 (Telophase) — 두 딸세포로 분리, 핵막 재형성\n\n"
-            "──────────\n"
-            "현재 사전 학습 모델은 COCO 80 클래스(사람·동물 등)이라\n"
-            "분열기를 못 잡습니다. 데이터셋 탭에서 라벨링 후 학습한\n"
-            "사용자 모델을 선택하면 자동 검출 가능합니다."
+            "• 간기 (Interphase) — 분열 전, 핵 안에 염색사 산재   "
+            "• 전기 (Prophase) — 염색사 응축, 핵막 사라짐   "
+            "• 중기 (Metaphase) — 염색체가 적도판에 정렬 ⭐ 가장 보기 좋음   "
+            "• 후기 (Anaphase) — 염색분체 양극 분리   "
+            "• 말기 (Telophase) — 두 딸세포로 분리, 핵막 재형성   "
+            "ℹ️ 사전 모델(COCO 80)은 분열기 미지원 — 데이터셋 탭에서 라벨링→학습 후 사용자 모델 선택 시 자동 검출."
         )
-        self.left_stack.addWidget(det_left)
-        self.right_stack.addWidget(det_right)
+        self.menu_stack.addWidget(det_menu)
+        self.aux_stack.addWidget(det_aux)
 
         # ---- 페이지 4: 아카이브 ----
-        # 좌: 갤러리 (썸네일) / 우: 플레이어 (프레임 시퀀스 재생)
-        arc_left = QtWidgets.QWidget()
-        arc_left_col = QtWidgets.QVBoxLayout(arc_left)
-        arc_left_col.setContentsMargins(8, 8, 8, 8)
-        arc_left_col.setSpacing(8)
-        arc_left_title = QtWidgets.QLabel("🖼️  갤러리")
-        arc_left_title.setProperty("role", "title")
-        arc_left_col.addWidget(arc_left_title)
-        arc_left_col.addWidget(self.gallery, 1)
+        # 메뉴 (좌측 상단): 갤러리 (썸네일 — 좁은 영역)
+        arc_menu = QtWidgets.QWidget()
+        arc_menu_col = QtWidgets.QVBoxLayout(arc_menu)
+        arc_menu_col.setContentsMargins(8, 8, 8, 8)
+        arc_menu_col.setSpacing(6)
+        arc_menu_title = QtWidgets.QLabel("🖼️  갤러리")
+        arc_menu_title.setProperty("role", "title")
+        arc_menu_col.addWidget(arc_menu_title)
+        arc_menu_col.addWidget(self.gallery, 1)
+        # 보조 (하단): 플레이어 (시퀀스 프레임 재생)
+        arc_aux = QtWidgets.QWidget()
+        arc_aux_col = QtWidgets.QVBoxLayout(arc_aux)
+        arc_aux_col.setContentsMargins(8, 4, 8, 8)
+        arc_aux_col.setSpacing(6)
+        arc_aux_title = QtWidgets.QLabel("▶️  플레이어")
+        arc_aux_title.setProperty("role", "title")
+        arc_aux_col.addWidget(arc_aux_title)
+        arc_aux_col.addWidget(self.player, 1)
 
-        arc_right = QtWidgets.QWidget()
-        arc_right_col = QtWidgets.QVBoxLayout(arc_right)
-        arc_right_col.setContentsMargins(8, 8, 8, 8)
-        arc_right_col.setSpacing(8)
-        arc_right_title = QtWidgets.QLabel("▶️  플레이어")
-        arc_right_title.setProperty("role", "title")
-        arc_right_col.addWidget(arc_right_title)
-        arc_right_col.addWidget(self.player, 1)
-
-        self.left_stack.addWidget(arc_left)
-        self.right_stack.addWidget(arc_right)
+        self.menu_stack.addWidget(arc_menu)
+        self.aux_stack.addWidget(arc_aux)
 
     def _wrap_scroll(self, widgets):
         inner = QtWidgets.QWidget()
@@ -412,9 +409,9 @@ class MainWindow(QtWidgets.QMainWindow):
         return sidebar
 
     def _select_tab(self, idx: int):
-        """사이드바 버튼 → left/right stack 동시 전환."""
-        self.left_stack.setCurrentIndex(idx)
-        self.right_stack.setCurrentIndex(idx)
+        """사이드바 버튼 → menu/aux stack 동시 전환."""
+        self.menu_stack.setCurrentIndex(idx)
+        self.aux_stack.setCurrentIndex(idx)
         if 0 <= idx < len(self._sidebar_btns):
             self._sidebar_btns[idx].setChecked(True)
 
