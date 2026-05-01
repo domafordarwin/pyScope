@@ -288,6 +288,8 @@ class SensePanel(QtWidgets.QGroupBox):
     color_changed = QtCore.pyqtSignal(tuple)
     off_clicked = QtCore.pyqtSignal()
     preset_clicked = QtCore.pyqtSignal(str)
+    # 400배 등 고배율 — LED max + 카메라 노출/게인 부스트 요청
+    hi_mag_requested = QtCore.pyqtSignal()
 
     # Internal pattern key -> Korean display label
     # Note: DF label is computed dynamically in _refresh_mode_label() to include
@@ -363,9 +365,10 @@ class SensePanel(QtWidgets.QGroupBox):
 
         c_row = QtWidgets.QHBoxLayout()
         c_row.setSpacing(6)
-        self.r = QtWidgets.QSpinBox(); self.r.setRange(0, 255); self.r.setValue(180)
-        self.g = QtWidgets.QSpinBox(); self.g.setRange(0, 255); self.g.setValue(180)
-        self.b = QtWidgets.QSpinBox(); self.b.setRange(0, 255); self.b.setValue(180)
+        # 기본값을 max 로 — 400배 등 고배율에서 빛량 부족 방지
+        self.r = QtWidgets.QSpinBox(); self.r.setRange(0, 255); self.r.setValue(255)
+        self.g = QtWidgets.QSpinBox(); self.g.setRange(0, 255); self.g.setValue(255)
+        self.b = QtWidgets.QSpinBox(); self.b.setRange(0, 255); self.b.setValue(255)
         for w in (self.r, self.g, self.b):
             w.valueChanged.connect(self._on_color)
             w.setMinimumWidth(56)
@@ -402,6 +405,16 @@ class SensePanel(QtWidgets.QGroupBox):
         self.btn_dpc_t = QtWidgets.QPushButton("DPC ▲")
         self.btn_dpc_b = QtWidgets.QPushButton("DPC ▼")
 
+        # 🔆 고배율 부스트 — BF + LED max + 카메라 노출/게인 부스트
+        self.btn_hi_mag = QtWidgets.QPushButton("🔆  고배율 부스트 (400x)")
+        self.btn_hi_mag.setProperty("role", "primary")
+        self.btn_hi_mag.setToolTip(
+            "고배율(400x) 환경에서 빛량 부족 시 1클릭 보정\n"
+            "  • BF 모드 + LED RGB 최대(255)\n"
+            "  • LED 휘도 100%\n"
+            "  • 카메라 노출 시간 + 게인 자동 부스트"
+        )
+
         pgrid.addWidget(self.btn_bf,    0, 0)
         pgrid.addWidget(self.btn_df,    0, 1)
         pgrid.addWidget(self.btn_clear, 0, 2)
@@ -409,6 +422,8 @@ class SensePanel(QtWidgets.QGroupBox):
         pgrid.addWidget(self.btn_dpc_r, 1, 1)
         pgrid.addWidget(self.btn_dpc_t, 2, 0)
         pgrid.addWidget(self.btn_dpc_b, 2, 1)
+        # 고배율 버튼 — 가로 전체 (2번째 행 마지막에 폭 1로, 별도 행)
+        pgrid.addWidget(self.btn_hi_mag, 3, 0, 1, 3)
         root.addLayout(pgrid)
 
         # ---- DF inner radius (암시야 환형 안쪽 반지름) ----
@@ -485,6 +500,7 @@ class SensePanel(QtWidgets.QGroupBox):
         self.btn_dpc_r.clicked.connect(lambda: self.apply_preset("DPC_RIGHT"))
         self.btn_dpc_t.clicked.connect(lambda: self.apply_preset("DPC_TOP"))
         self.btn_dpc_b.clicked.connect(lambda: self.apply_preset("DPC_BOTTOM"))
+        self.btn_hi_mag.clicked.connect(self._on_hi_mag_clicked)
 
         self.btn_apply.clicked.connect(self.push_full_led_state)
         self.led_grid.pixel_toggled.connect(self._on_pixel_toggled)
@@ -583,6 +599,27 @@ class SensePanel(QtWidgets.QGroupBox):
             self.sense.set_pixel(x, y, eff[0], eff[1], eff[2])
         else:
             self.sense.set_pixel(x, y, 0, 0, 0)
+
+    # ---- 고배율 부스트 ----
+    def _on_hi_mag_clicked(self):
+        """LED 를 BF + RGB max + 휘도 max 로 설정하고, 카메라 부스트 요청을 emit."""
+        # RGB 모두 255 (LED 효율 최대)
+        for spin in (self.r, self.g, self.b):
+            spin.blockSignals(True)
+            spin.setValue(255)
+            spin.blockSignals(False)
+        # 휘도 max
+        self.b_slider.blockSignals(True)
+        self.b_slider.setValue(255)
+        self.b_value.setText("255")
+        self.b_slider.blockSignals(False)
+        # BF 적용 (LED 패턴 + 색상 동시 갱신)
+        self._apply_display_color()
+        self.brightness_changed.emit(255)
+        self.color_changed.emit(self.effective_rgb())
+        self.apply_preset("BF")
+        # main_window 가 카메라에 노출/게인 부스트를 적용하도록 알림
+        self.hi_mag_requested.emit()
 
     # ---- presets ----
     def apply_preset(self, name: str):

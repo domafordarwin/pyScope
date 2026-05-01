@@ -9,6 +9,10 @@ from ..util.image_convert import bgr_to_qimage
 
 class LiveView(QtWidgets.QLabel):
     roi_changed = QtCore.pyqtSignal(object)  # (x,y,w,h) in image coords or None
+    zoom_changed = QtCore.pyqtSignal(float)  # display zoom factor (1.0 = fit)
+
+    MIN_ZOOM = 1.0    # 1.0 == fit-to-widget. 줌은 그 위에 곱해진다 (디지털 zoom-in only)
+    MAX_ZOOM = 8.0
 
     def __init__(self, parent=None):
         super().__init__(parent)
@@ -29,13 +33,21 @@ class LiveView(QtWidgets.QLabel):
         self._pending_labels = []  # [(class_id, class_name, x, y, w, h)]
         self._roi_locked = False
 
+        # 디지털 줌 (fit 위에 곱해짐) + 가운데버튼 드래그 팬
+        self._zoom = 1.0
+        self._pan_dx = 0.0
+        self._pan_dy = 0.0
+        self._panning = False
+        self._pan_anchor = QtCore.QPoint()
+        self._pan_anchor_offset = (0.0, 0.0)
+
         self.setMouseTracking(True)
+        self.setFocusPolicy(QtCore.Qt.StrongFocus)
 
     def set_roi_locked(self, locked: bool):
         """잠금 시 마우스 드래그/우클릭이 ROI를 변경하지 못함."""
         self._roi_locked = bool(locked)
-        self.setCursor(QtCore.Qt.ForbiddenCursor if self._roi_locked
-                       else QtCore.Qt.ArrowCursor)
+        self._update_cursor_after_pan()
 
     def current_roi(self):
         return self._roi_xywh
@@ -101,11 +113,62 @@ class LiveView(QtWidgets.QLabel):
     def _pix_rect(self):
         if self._pix is None:
             return None
-        # scaled pix rect in label coords
-        pix = self._pix.scaled(self.size(), QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
-        x = (self.width() - pix.width()) // 2
-        y = (self.height() - pix.height()) // 2
-        return QtCore.QRect(x, y, pix.width(), pix.height()), pix
+        # 1) 위젯에 fit 한 base 사이즈
+        base = self._pix.scaled(
+            self.size(),
+            QtCore.Qt.KeepAspectRatio,
+            QtCore.Qt.SmoothTransformation,
+        )
+        # 2) 그 위에 디지털 줌 곱하기
+        if abs(self._zoom - 1.0) < 1e-3:
+            pix = base
+        else:
+            new_size = QtCore.QSize(
+                int(base.width()  * self._zoom),
+                int(base.height() * self._zoom),
+            )
+            pix = self._pix.scaled(
+                new_size,
+                QtCore.Qt.KeepAspectRatio,
+                QtCore.Qt.SmoothTransformation,
+            )
+        # 3) 중앙 정렬 + 팬 오프셋. 팬은 줌이 1보다 클 때만 의미가 있음
+        cx = (self.width()  - pix.width())  // 2
+        cy = (self.height() - pix.height()) // 2
+        # 팬 오프셋 클램프 — 화면 밖으로 빠져나가지 않게
+        max_dx = max(0, (pix.width()  - self.width())  // 2)
+        max_dy = max(0, (pix.height() - self.height()) // 2)
+        dx = max(-max_dx, min(max_dx, int(self._pan_dx)))
+        dy = max(-max_dy, min(max_dy, int(self._pan_dy)))
+        return QtCore.QRect(cx + dx, cy + dy, pix.width(), pix.height()), pix
+
+    # ---- zoom / pan public API ----
+    def reset_zoom(self):
+        if abs(self._zoom - 1.0) < 1e-3 and self._pan_dx == 0 and self._pan_dy == 0:
+            return
+        self._zoom = 1.0
+        self._pan_dx = 0.0
+        self._pan_dy = 0.0
+        self.zoom_changed.emit(self._zoom)
+        self.update()
+
+    def set_zoom(self, z: float):
+        z = max(self.MIN_ZOOM, min(self.MAX_ZOOM, float(z)))
+        if abs(z - self._zoom) < 1e-3:
+            return
+        self._zoom = z
+        # 줌이 1.0 으로 돌아오면 팬도 리셋
+        if abs(self._zoom - 1.0) < 1e-3:
+            self._pan_dx = 0.0
+            self._pan_dy = 0.0
+        self.zoom_changed.emit(self._zoom)
+        self.update()
+
+    def zoom_by(self, factor: float):
+        self.set_zoom(self._zoom * factor)
+
+    def current_zoom(self) -> float:
+        return self._zoom
 
     def _widget_to_image(self, p: QtCore.QPoint):
         if self._frame_bgr is None or self._pix is None:
@@ -123,6 +186,14 @@ class LiveView(QtWidgets.QLabel):
         return ix, iy
 
     def mousePressEvent(self, ev):
+        # 가운데 버튼 = 팬 (ROI 잠금 여부와 무관)
+        if ev.button() == QtCore.Qt.MiddleButton and self._zoom > 1.0:
+            self._panning = True
+            self._pan_anchor = ev.pos()
+            self._pan_anchor_offset = (self._pan_dx, self._pan_dy)
+            self.setCursor(QtCore.Qt.ClosedHandCursor)
+            return
+
         if self._roi_locked:
             return
         if ev.button() == QtCore.Qt.RightButton:
@@ -138,12 +209,22 @@ class LiveView(QtWidgets.QLabel):
         self.update()
 
     def mouseMoveEvent(self, ev):
+        if self._panning:
+            delta = ev.pos() - self._pan_anchor
+            self._pan_dx = self._pan_anchor_offset[0] + delta.x()
+            self._pan_dy = self._pan_anchor_offset[1] + delta.y()
+            self.update()
+            return
         if self._roi_locked or not self._dragging:
             return
         self._p1 = ev.pos()
         self.update()
 
     def mouseReleaseEvent(self, ev):
+        if ev.button() == QtCore.Qt.MiddleButton and self._panning:
+            self._panning = False
+            self._update_cursor_after_pan()
+            return
         if self._roi_locked:
             return
         if ev.button() != QtCore.Qt.LeftButton:
@@ -183,6 +264,35 @@ class LiveView(QtWidgets.QLabel):
             self.roi_changed.emit(self._roi_xywh)
 
         self.update()
+
+    # ---- wheel / double-click — zoom UX ----
+    def wheelEvent(self, ev):
+        # Ctrl + 휠 → 디지털 줌
+        if ev.modifiers() & QtCore.Qt.ControlModifier:
+            delta = ev.angleDelta().y()
+            if delta > 0:
+                self.zoom_by(1.20)
+            elif delta < 0:
+                self.zoom_by(1.0 / 1.20)
+            ev.accept()
+            return
+        super().wheelEvent(ev)
+
+    def mouseDoubleClickEvent(self, ev):
+        # 더블클릭: 1.0(fit) ↔ 2.0 토글 — 빠른 디테일 확인용
+        if ev.button() == QtCore.Qt.LeftButton:
+            self.set_zoom(1.0 if self._zoom > 1.05 else 2.0)
+            ev.accept()
+            return
+        super().mouseDoubleClickEvent(ev)
+
+    def _update_cursor_after_pan(self):
+        if self._roi_locked:
+            self.setCursor(QtCore.Qt.ForbiddenCursor)
+        elif self._zoom > 1.0:
+            self.setCursor(QtCore.Qt.OpenHandCursor)
+        else:
+            self.setCursor(QtCore.Qt.ArrowCursor)
 
     def paintEvent(self, ev):
         super().paintEvent(ev)

@@ -137,6 +137,11 @@ class MainWindow(QtWidgets.QMainWindow):
             self.camera_panel.update_from_camera
         )
         self.camera_panel.control_changed.connect(self._on_camera_control_changed)
+        # 🔆 고배율 부스트 — sense_panel 버튼 → 카메라 노출/게인 부스트
+        self.sense_panel.hi_mag_requested.connect(
+            self.cam_worker.apply_hi_mag_boost,
+            QtCore.Qt.QueuedConnection,
+        )
         self.cam_thread.started.connect(self.cam_worker.start)
 
         # ============ Signals wiring ============
@@ -194,7 +199,10 @@ class MainWindow(QtWidgets.QMainWindow):
         col.setContentsMargins(0, 0, 0, 0)
         col.setSpacing(8)
 
-        # 헤더 줄: 타이틀 + ROI 정보
+        # LiveView 먼저 생성 (헤더 줄에서 시그널 연결)
+        self.live = LiveView()
+
+        # 헤더 줄: 타이틀 + ROI 정보 + 줌 컨트롤
         head = QtWidgets.QHBoxLayout()
         head.setSpacing(8)
         lbl = QtWidgets.QLabel("실시간 영상")
@@ -205,10 +213,36 @@ class MainWindow(QtWidgets.QMainWindow):
         head.addWidget(make_separator("v"))
         head.addWidget(self.lbl_roi_info)
         head.addStretch(1)
+
+        # 줌 컨트롤
+        self.btn_zoom_out = QtWidgets.QPushButton("－")
+        self.btn_zoom_out.setProperty("role", "ghost")
+        self.btn_zoom_out.setFixedWidth(36)
+        self.btn_zoom_out.setToolTip("축소 (Ctrl+휠 / Ctrl+−)")
+        self.lbl_zoom = QtWidgets.QLabel("100%")
+        self.lbl_zoom.setProperty("role", "value")
+        self.lbl_zoom.setMinimumWidth(56)
+        self.lbl_zoom.setAlignment(QtCore.Qt.AlignCenter)
+        self.btn_zoom_in = QtWidgets.QPushButton("＋")
+        self.btn_zoom_in.setProperty("role", "ghost")
+        self.btn_zoom_in.setFixedWidth(36)
+        self.btn_zoom_in.setToolTip("확대 (Ctrl+휠 / Ctrl+=)")
+        self.btn_zoom_reset = QtWidgets.QPushButton("Fit")
+        self.btn_zoom_reset.setProperty("role", "ghost")
+        self.btn_zoom_reset.setFixedWidth(48)
+        self.btn_zoom_reset.setToolTip("원래 크기로 (Ctrl+0)")
+        head.addWidget(self.btn_zoom_out)
+        head.addWidget(self.lbl_zoom)
+        head.addWidget(self.btn_zoom_in)
+        head.addWidget(self.btn_zoom_reset)
         col.addLayout(head)
 
-        # LiveView
-        self.live = LiveView()
+        # 줌 시그널 연결
+        self.btn_zoom_in.clicked.connect(lambda: self.live.zoom_by(1.25))
+        self.btn_zoom_out.clicked.connect(lambda: self.live.zoom_by(1.0 / 1.25))
+        self.btn_zoom_reset.clicked.connect(self.live.reset_zoom)
+        self.live.zoom_changed.connect(self._on_live_zoom_changed)
+
         col.addWidget(self.live, 1)
 
         # 카메라 시작/정지 (toolbar에도 있지만 이중 안전)
@@ -474,6 +508,12 @@ class MainWindow(QtWidgets.QMainWindow):
 
         return tb
 
+    def _on_live_zoom_changed(self, z: float):
+        if abs(z - 1.0) < 0.01:
+            self.lbl_zoom.setText("Fit")
+        else:
+            self.lbl_zoom.setText("%d%%" % int(round(z * 100)))
+
     def _toggle_camera_quick(self):
         if self.cam_thread.isRunning():
             self._stop_camera()
@@ -514,6 +554,11 @@ class MainWindow(QtWidgets.QMainWindow):
         sc("Ctrl+2",        lambda: self._select_tab(1))  # 데이터셋
         sc("Ctrl+3",        lambda: self._select_tab(2))  # 검출
         sc("Ctrl+4",        lambda: self._select_tab(3))  # 아카이브
+        # LiveView 줌 단축키
+        sc("Ctrl+0",        self.live.reset_zoom)
+        sc("Ctrl+=",        lambda: self.live.zoom_by(1.25))
+        sc("Ctrl++",        lambda: self.live.zoom_by(1.25))
+        sc("Ctrl+-",        lambda: self.live.zoom_by(1.0 / 1.25))
 
     # ============================================================
     # Camera

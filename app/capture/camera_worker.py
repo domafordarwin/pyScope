@@ -273,6 +273,28 @@ class CameraWorker(QtCore.QObject):
         except Exception:
             pass
 
+    @QtCore.pyqtSlot()
+    def apply_hi_mag_boost(self):
+        """400배 등 고배율 환경 빛량 부스트.
+
+        노출 50ms + gain ↑ + brightness max. LED PWM banding 가능성을
+        감수하더라도 빛량 우선 — 시료가 어두워서 보이지 않는 것보다 낫다.
+        존재하지 않는 컨트롤은 set_v4l2_control 이 silent fail 한다.
+        """
+        if self.actual_index is None:
+            self.status.emit("고배율 부스트 실패: 카메라 미시작")
+            return
+        # auto exposure off (manual) → 노출 시간 직접 적용
+        self.set_v4l2_control("auto_exposure",            1)
+        self.set_v4l2_control("exposure_time_absolute", 500)   # 50 ms
+        self.set_v4l2_control("gain",                    80)
+        self.set_v4l2_control("brightness",              16)   # 일반 1-16
+        # 일반 웹캠 — backlight_compensation 도 같이 max
+        self.set_v4l2_control("backlight_compensation",   2)
+        self.status.emit(
+            "🔆 고배율 부스트 — 노출 50ms · gain 80 · brightness max"
+        )
+
     @staticmethod
     def _read_camera_name(index):
         """/sys/class/video4linux/videoN/name 에서 카메라 product name."""
