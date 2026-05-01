@@ -1,0 +1,821 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>RAIM Scope 개발 보고서 v3 — 탭 구조 + 데이터셋 + Active learning</title>
+<style>
+:root{
+  --bg:#fafbfc; --surface:#ffffff; --panel:#f3f5f7;
+  --ink:#15191f; --ink2:#3e4651; --muted:#626973; --dim:#8a919a;
+  --accent:#1f6aa6; --accent-deep:#155485; --accent-soft:#e6eef6;
+  --border:rgba(0,0,0,.16); --border-soft:rgba(0,0,0,.08);
+  --code-bg:#1a1d22; --code-ink:#e6eef6;
+  --ok:#3f7843; --warn:#a06a1f; --err:#9c3e3e;
+  --purple:#5d4f99; --teal:#2c8b8b;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0;background:var(--bg);color:var(--ink);
+  font-family:'Pretendard Variable','Pretendard','Noto Sans KR','Malgun Gothic',
+              'Segoe UI','Inter',-apple-system,sans-serif;
+  font-size:15px;line-height:1.65;-webkit-font-smoothing:antialiased;
+  font-feature-settings:'tnum';}
+.wrap{max-width:1080px;margin:0 auto;padding:48px 32px 96px;}
+
+header.cover{
+  background:linear-gradient(135deg,#1f6aa6 0%,#5d4f99 60%,#2c8b8b 100%);
+  color:#fff;padding:56px 40px;border-radius:14px;
+  box-shadow:0 12px 36px rgba(31,106,166,.25);
+  margin-bottom:48px;
+}
+header.cover .badge{
+  display:inline-block;background:rgba(255,255,255,.15);
+  padding:5px 14px;border-radius:20px;font-size:11px;font-weight:600;
+  letter-spacing:1.2px;text-transform:uppercase;margin-bottom:16px;}
+header.cover .badge.v3{background:rgba(80,255,180,.25);}
+header.cover h1{font-size:38px;margin:0 0 14px;font-weight:800;
+  letter-spacing:-0.5px;line-height:1.2;}
+header.cover .sub{font-size:16px;opacity:.92;margin:0;font-weight:400;}
+header.cover .meta{margin-top:28px;font-size:13px;opacity:.85;
+  display:flex;gap:24px;flex-wrap:wrap;}
+header.cover .meta b{font-weight:600;opacity:1;margin-right:6px;}
+
+nav.toc{background:var(--surface);border:1px solid var(--border-soft);
+  border-radius:12px;padding:28px 32px;margin-bottom:48px;}
+nav.toc h2{margin:0 0 14px;font-size:13px;color:var(--muted);
+  font-weight:700;letter-spacing:1.4px;text-transform:uppercase;}
+nav.toc ol{margin:0;padding-left:24px;}
+nav.toc li{margin:6px 0;font-size:14px;}
+nav.toc a{color:var(--ink2);text-decoration:none;}
+nav.toc a:hover{color:var(--accent);}
+nav.toc .new{display:inline-block;background:#e6f7ec;color:#1f6633;
+  font-size:9px;font-weight:700;padding:1px 6px;border-radius:3px;
+  margin-left:6px;letter-spacing:0.5px;}
+
+section{margin-bottom:56px;}
+h2.section{font-size:24px;font-weight:800;margin:0 0 8px;
+  padding-bottom:12px;border-bottom:3px solid var(--accent);
+  color:var(--ink);letter-spacing:-0.3px;}
+h2.section .num{color:var(--accent);font-size:14px;font-weight:700;
+  letter-spacing:1.5px;display:block;margin-bottom:4px;}
+h3{font-size:18px;margin:32px 0 12px;color:var(--ink);
+  font-weight:700;border-left:3px solid var(--accent);padding-left:10px;}
+h4{font-size:15px;margin:20px 0 8px;color:var(--ink2);font-weight:700;}
+p{margin:10px 0;color:var(--ink2);}
+
+.callout{background:var(--accent-soft);border-left:4px solid var(--accent);
+  padding:14px 20px;border-radius:0 8px 8px 0;margin:18px 0;color:var(--ink);}
+.callout.warn{background:#fdf3e7;border-left-color:var(--warn);color:#5a3a0e;}
+.callout.ok{background:#e9f3ea;border-left-color:var(--ok);color:#1f4423;}
+.callout.purple{background:#efebf7;border-left-color:var(--purple);color:#3a2d6b;}
+.callout.teal{background:#e0f2f2;border-left-color:var(--teal);color:#1a4f4f;}
+
+.grid-2{display:grid;grid-template-columns:1fr 1fr;gap:20px;margin:18px 0;}
+.grid-3{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;margin:18px 0;}
+.card{background:var(--surface);border:1px solid var(--border-soft);
+  border-radius:10px;padding:20px;}
+.card h4{margin-top:0;}
+
+table{width:100%;border-collapse:collapse;margin:18px 0;
+  font-size:14px;background:var(--surface);
+  border:1px solid var(--border-soft);border-radius:10px;overflow:hidden;}
+thead th{background:var(--panel);text-align:left;padding:12px 14px;
+  font-weight:700;color:var(--ink);font-size:13px;
+  border-bottom:2px solid var(--border-soft);}
+tbody td{padding:11px 14px;border-bottom:1px solid var(--border-soft);
+  vertical-align:top;color:var(--ink2);}
+tbody tr:last-child td{border-bottom:none;}
+tbody tr:hover{background:#f7f9fb;}
+td.num{font-variant-numeric:tabular-nums;text-align:right;color:var(--accent-deep);
+  font-weight:600;}
+td.center{text-align:center;}
+.ok-cell{color:var(--ok);font-weight:600;}
+.warn-cell{color:var(--warn);font-weight:600;}
+.err-cell{color:var(--err);font-weight:600;}
+.new-cell{background:#e6f7ec;}
+
+code,pre{font-family:'JetBrains Mono','Cascadia Code','Consolas',monospace;}
+code{background:var(--accent-soft);padding:2px 6px;border-radius:4px;
+  font-size:0.88em;color:var(--accent-deep);font-weight:500;}
+pre{background:var(--code-bg);color:var(--code-ink);
+  padding:18px 22px;border-radius:10px;overflow-x:auto;
+  font-size:13px;line-height:1.55;margin:14px 0;}
+pre code{background:transparent;color:inherit;padding:0;font-weight:400;}
+.lang{display:inline-block;background:rgba(255,255,255,.1);color:#9bb6c7;
+  font-size:10px;padding:2px 8px;border-radius:3px;margin-bottom:8px;
+  letter-spacing:1px;text-transform:uppercase;}
+
+.phase{background:var(--surface);border:1px solid var(--border-soft);
+  border-left:4px solid var(--accent);border-radius:8px;
+  padding:18px 22px;margin:14px 0;}
+.phase.v3new{border-left-color:var(--teal);background:#f3fafa;}
+.phase.v2new{border-left-color:#a06a1f;background:#fffbf5;}
+.phase.ai{border-left-color:var(--purple);background:#fafaff;}
+.phase .title{display:flex;align-items:baseline;gap:12px;margin-bottom:8px;
+  flex-wrap:wrap;}
+.phase .title .pnum{background:var(--accent);color:#fff;font-size:11px;
+  font-weight:700;padding:2px 9px;border-radius:12px;letter-spacing:1px;}
+.phase.v3new .title .pnum{background:var(--teal);}
+.phase.v2new .title .pnum{background:#a06a1f;}
+.phase.ai .title .pnum{background:var(--purple);}
+.phase .title h4{margin:0;font-size:16px;color:var(--ink);}
+.phase ul{margin:8px 0 0;padding-left:20px;}
+.phase li{margin:4px 0;font-size:14px;color:var(--ink2);}
+.phase .files{margin-top:8px;font-size:12px;color:var(--muted);}
+.phase .files code{font-size:11px;}
+
+.tag{display:inline-block;font-size:11px;font-weight:600;padding:2px 9px;
+  border-radius:4px;margin-right:4px;letter-spacing:0.5px;}
+.tag.ko{background:#fef3e7;color:#a06a1f;}
+.tag.opt{background:#e9eef7;color:#1f6aa6;}
+.tag.fix{background:#fde9e9;color:#9c3e3e;}
+.tag.feat{background:#e9f3ea;color:#3f7843;}
+.tag.perf{background:#f0e9f7;color:#6b3da6;}
+.tag.ai{background:#efebf7;color:#5d4f99;}
+.tag.new{background:#e6f7ec;color:#1f6633;}
+.tag.ux{background:#e0f2f2;color:#1a4f4f;}
+
+.kpi-row{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;
+  margin:18px 0;}
+.kpi{background:var(--surface);border:1px solid var(--border-soft);
+  border-radius:10px;padding:18px;text-align:center;}
+.kpi.ai{border-color:rgba(93,79,153,.3);background:#fafaff;}
+.kpi.ds{border-color:rgba(44,139,139,.3);background:#f3fafa;}
+.kpi .v{font-size:24px;font-weight:800;color:var(--accent);
+  display:block;font-variant-numeric:tabular-nums;}
+.kpi.ai .v{color:var(--purple);}
+.kpi.ds .v{color:var(--teal);}
+.kpi .l{font-size:11px;color:var(--muted);font-weight:600;
+  letter-spacing:0.5px;margin-top:4px;text-transform:uppercase;}
+
+.formula{background:var(--panel);padding:14px 20px;border-radius:8px;
+  font-family:'Cambria Math','Times New Roman',serif;
+  font-style:italic;font-size:16px;text-align:center;margin:14px 0;
+  color:var(--ink);}
+
+.workflow{background:var(--surface);border:1px solid var(--border-soft);
+  border-radius:10px;padding:24px;margin:18px 0;}
+.workflow ol{counter-reset:step;list-style:none;padding-left:0;margin:0;}
+.workflow ol li{counter-increment:step;position:relative;
+  padding-left:48px;margin:18px 0;min-height:36px;}
+.workflow ol li::before{content:counter(step);position:absolute;
+  left:0;top:0;width:32px;height:32px;border-radius:50%;
+  background:var(--teal);color:#fff;display:flex;align-items:center;
+  justify-content:center;font-weight:700;font-size:14px;}
+.workflow ol li b{color:var(--ink);font-weight:700;}
+
+.tab-mock{display:grid;grid-template-columns:120px 1fr;gap:0;
+  border:1px solid var(--border-soft);border-radius:10px;overflow:hidden;
+  margin:14px 0;font-family:'JetBrains Mono','Cascadia Code',monospace;
+  font-size:13px;}
+.tab-mock .lbl{background:var(--accent);color:#fff;padding:14px 16px;
+  font-weight:700;}
+.tab-mock .body{padding:14px 18px;background:var(--panel);}
+
+footer{margin-top:80px;padding-top:32px;border-top:1px solid var(--border-soft);
+  font-size:13px;color:var(--muted);text-align:center;}
+footer a{color:var(--accent);text-decoration:none;}
+.cite{font-size:13px;color:var(--ink2);margin:8px 0;
+  padding-left:20px;text-indent:-20px;}
+.cite b{color:var(--ink);}
+
+.changelog{background:#f3fafa;border:1px solid #a8d4d4;border-radius:8px;
+  padding:16px 20px;margin:18px 0;font-size:13px;}
+.changelog h4{margin:0 0 8px;color:#1a4f4f;font-size:13px;letter-spacing:1px;
+  text-transform:uppercase;}
+.changelog ul{margin:0;padding-left:20px;}
+.changelog li{margin:4px 0;color:#1a4f4f;}
+
+@media print {
+  body{font-size:11pt;background:#fff;}
+  .wrap{max-width:none;padding:24px;}
+  header.cover{break-after:avoid;}
+  section{break-inside:avoid;}
+  h2.section{break-after:avoid;}
+  pre{font-size:9pt;}
+  nav.toc{break-after:page;}
+  .phase{break-inside:avoid;}
+}
+@media (max-width:760px){
+  .wrap{padding:24px 16px;}
+  .grid-2,.grid-3,.kpi-row{grid-template-columns:1fr;}
+  header.cover{padding:32px 24px;}
+  header.cover h1{font-size:26px;}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<!-- ============ COVER ============ -->
+<header class="cover">
+  <span class="badge v3">Version 3 · 통합판</span>
+  <h1>RAIM Scope: 탭 기반 + 데이터셋 라벨링 + Active learning</h1>
+  <p class="sub">
+    Watanabe et al.(2020) 광학계 + PyQt5 GUI + Hailo NPU AI에 더해
+    <b>4-탭 작업 흐름</b>·<b>COCO/YOLO 데이터셋 자동 생성</b>·<b>AI 보조 라벨링</b>으로
+    완성된 컴퓨테이셔널 현미경 통합 보고서
+  </p>
+  <div class="meta">
+    <span><b>프로젝트</b>AIMScopeQt / RAIM Scope</span>
+    <span><b>대상 환경</b>Pi 5 + Sense HAT 2 + USB UVC + Hailo-10H</span>
+    <span><b>작성일</b>2026-05-01 (v3)</span>
+    <span><b>상태</b>v3 · 학습 워크플로우 일체 통합</span>
+  </div>
+</header>
+
+<div class="changelog">
+  <h4>📋 V3에서 추가된 내용</h4>
+  <ul>
+    <li><b>Phase 15</b> — 카메라 자동 분류 (현미경 vs 일반) + V4L2 GUI 컨트롤 패널 (동적 컨트롤 감지)</li>
+    <li><b>Phase 16</b> — 탭 기반 작업 흐름 4-탭 구조 (라이브 / 데이터셋 / 검출 / 아카이브)</li>
+    <li><b>Phase 17</b> — 데이터셋 모듈 (CocoDataset · YOLO export · train/val 자동 80/20 분할)</li>
+    <li><b>Phase 18</b> — Active learning (AI 검출 → 라벨로 자동 추가) + LiveView 📌 점선 박스 시각 피드백</li>
+    <li><b>§ 9 갱신</b> — GUI 안에서 라벨링 + export 가능 (외부 도구 없이) · 5-step 단순화</li>
+    <li><b>§ 10 신규</b> — Colab 학습 노트북 (별도 .ipynb 파일 — Ultralytics + Hailo 변환)</li>
+  </ul>
+</div>
+
+<!-- ============ TOC ============ -->
+<nav class="toc">
+  <h2>목차</h2>
+  <ol>
+    <li><a href="#abstract">개요 및 참조 논문</a></li>
+    <li><a href="#system">시스템 구성 비교</a></li>
+    <li><a href="#dev-process">개발 과정 (단계별) <span class="new">P15-P18</span></a></li>
+    <li><a href="#perf">성능·측정 결과</a></li>
+    <li><a href="#design-decisions">주요 기술 결정</a></li>
+    <li><a href="#known-issues">현재 한계</a></li>
+    <li><a href="#improvements">개선 제안</a></li>
+    <li><a href="#references">참고 문헌</a></li>
+    <li><a href="#custom-model">커스텀 모델 학습 가이드 <span class="new">갱신</span></a></li>
+    <li><a href="#colab">Colab 학습 노트북 <span class="new">신규</span></a></li>
+  </ol>
+</nav>
+
+<!-- ============ §1 ABSTRACT ============ -->
+<section id="abstract">
+  <h2 class="section"><span class="num">§ 1 / 10</span>개요 및 참조 논문</h2>
+
+  <p>본 프로젝트는 Watanabe 외(2020)의
+  <i>"Low-cost multi-modal microscope using Raspberry Pi"</i> [1]에서
+  제시된 LED 어레이 기반 다중모드 현미경의 하드웨어 구성을 채택하면서,
+  실험실 사용성을 위한 <b>본격 GUI · 한국어 UI · 실시간 ROI 기반 DPC ·
+  갤러리 뷰어 · Hailo-10H NPU 기반 AI 검출 · 데이터셋 자동 생성 ·
+  Active learning</b>까지 통합한 확장 구현이다.</p>
+
+  <h3>참조 논문 핵심 내용</h3>
+  <p class="cite">[1] <b>Watanabe W., Maruyama R., Arimoto H., Tamada Y.</b>
+    "Low-cost multi-modal microscope using Raspberry Pi."
+    <i>Optik — International Journal for Light and Electron Optics</i>
+    <b>212</b> (2020) 164713. DOI:
+    <a href="https://doi.org/10.1016/j.ijleo.2020.164713">10.1016/j.ijleo.2020.164713</a></p>
+
+  <p>논문은 다음을 시연한다:</p>
+  <ul>
+    <li><b>광학계</b>: Olympus LMPlanFL 10× <code>NA 0.25</code> +
+      150mm tube lens + Pi Camera Module</li>
+    <li><b>광원</b>: Pimoroni UNICORNHAT 8×8 RGB LED, 5mm pitch,
+      LED↔시료 거리 <code>50 mm</code></li>
+    <li><b>4가지 모드</b>: BF, DF, DPC (좌-우 / 상-하), Polarization</li>
+  </ul>
+
+  <div class="formula">
+    I<sub>DPC,LR</sub> = (I<sub>L</sub> − I<sub>R</sub>) / (I<sub>L</sub> + I<sub>R</sub>)
+    &nbsp;&nbsp;,&nbsp;&nbsp;
+    I<sub>DPC,TB</sub> = (I<sub>T</sub> − I<sub>B</sub>) / (I<sub>T</sub> + I<sub>B</sub>)
+  </div>
+
+  <div class="callout teal">
+    <b>V3 핵심 가치 — 학습 워크플로우 일체 통합</b><br>
+    이전 V2는 Hailo NPU에서 사전 학습 모델(COCO 80 클래스)만 사용 가능했다.
+    V3에서는 <b>RAIM Scope 안에서 양파 분열기를 직접 라벨링하고 COCO/YOLO
+    데이터셋을 자동 생성</b>하여, 외부 도구 없이 Ultralytics 학습 → Hailo 변환
+    → Pi 배포 → 실시간 검출의 전체 사이클을 닫았다. <b>Active learning</b>으로
+    AI 보조 라벨링도 가능해 데이터 수집 시간이 크게 단축된다.
+  </div>
+</section>
+
+<!-- ============ §2 SYSTEM ============ -->
+<section id="system">
+  <h2 class="section"><span class="num">§ 2 / 10</span>시스템 구성 비교</h2>
+
+  <table>
+    <thead>
+      <tr><th>구성 요소</th><th>참조 논문 (Watanabe 2020)</th><th>본 RAIM Scope v3</th></tr>
+    </thead>
+    <tbody>
+      <tr><td><b>SBC</b></td><td>Raspberry Pi 3</td><td><b>Raspberry Pi 5</b> (aarch64)</td></tr>
+      <tr><td><b>OS</b></td><td>Raspbian (당시)</td><td>Debian 13 trixie · Python 3.13.5</td></tr>
+      <tr><td><b>대물렌즈</b></td><td>Olympus 10× NA 0.25</td><td>동일 NA 0.25</td></tr>
+      <tr><td><b>카메라</b></td><td>Pi Camera Module CSI</td><td>USB UVC 자동 분류 (FIC OS-CM50 / Realtek 등)</td></tr>
+      <tr><td><b>LED 매트릭스</b></td><td>Pimoroni UNICORNHAT 8×8</td><td>Sense HAT 2 8×8 (호환)</td></tr>
+      <tr><td><b>AI 가속기</b></td><td>없음</td><td>Hailo-10H · 26 TOPS · PCIe Gen3</td></tr>
+      <tr><td><b>UI</b></td><td>코드 단편</td><td>PyQt5 + 3 테마 + 한국어 + <b>4-탭 워크플로우</b></td></tr>
+      <tr class="new-cell"><td><b>데이터셋 모듈</b> 🆕</td><td>없음</td><td>COCO JSON · YOLO export · train/val 자동 분할</td></tr>
+      <tr class="new-cell"><td><b>Active learning</b> 🆕</td><td>없음</td><td>AI 검출 → pending 라벨 자동 추가 → 검토 후 저장</td></tr>
+      <tr class="new-cell"><td><b>학습 노트북</b> 🆕</td><td>없음</td><td>Colab .ipynb 첨부 (Ultralytics + Hailo 변환)</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ============ §3 DEV PROCESS ============ -->
+<section id="dev-process">
+  <h2 class="section"><span class="num">§ 3 / 10</span>개발 과정 (단계별)</h2>
+
+  <p>총 18 phase. P1-P14는 이전 보고서 (요약), <b>P15-P18은 V3에서 추가된 작업</b>.</p>
+
+  <h3>요약 (Phase 1 - 14)</h3>
+  <table>
+    <thead><tr><th>P#</th><th>내용</th><th>버전</th></tr></thead>
+    <tbody>
+      <tr><td>P1-P11</td><td>코드 정리 → 디자인 시스템 → 3-테마 → 한글화 → 배포 → 카메라 통합 → 가변 DF → 갤러리 팝업 → 성능 → anti-flicker → SenseHat 안정성</td><td>V1</td></tr>
+      <tr><td>P12</td><td>갤러리 팝업 panning + 더블클릭 토글</td><td>V2</td></tr>
+      <tr><td>P13</td><td>영상 품질 시스템 (수동 노출 + gain + brightness 환경변수)</td><td>V2</td></tr>
+      <tr><td>P14</td><td>Hailo NPU AI 통합 (5 sub-phases)</td><td>V2</td></tr>
+    </tbody>
+  </table>
+
+  <!-- ===== P15 ===== -->
+  <div class="phase v3new">
+    <div class="title"><span class="pnum">P15</span><h4>카메라 자동 분류 + V4L2 GUI 컨트롤 패널</h4>
+      <span class="tag feat">FEAT</span><span class="tag new">V3</span></div>
+    <ul>
+      <li><b>카메라 자동 분류</b> — USB ID 화이트리스트 + product name 키워드로
+        <code>microscope</code>(FIC OS-CM50, Cubeternet eSP570 등) vs
+        <code>general</code>(일반 USB 웹캠) 자동 판정</li>
+      <li><b>프로파일 자동 적용</b>:
+        <ul>
+          <li>microscope: 수동 노출 20 ms + gain 24 + brightness 12 +
+            <code>exposure_dynamic_framerate=0</code> (Sense HAT LED 강광원 대응)</li>
+          <li>general: 자동 노출 + <code>backlight_compensation=2</code> +
+            dynamic framerate (실내 조명 / 역광 자동 적응)</li>
+        </ul>
+      </li>
+      <li><b>CameraPanel 신규 위젯</b> — 카메라 시작 시
+        <code>v4l2-ctl --list-ctrls</code> 자동 파싱 → 사용 가능한 컨트롤만
+        슬라이더로 표시 (gain 없는 Realtek은 자동 숨김, 1-16 vs -64~64 등 범위 자동 적응)</li>
+      <li>제어된 컨트롤: 자동 노출 토글 · 노출 시간 · 밝기 · 게인 · 대비 · <b>역광 보정</b> · 감마</li>
+      <li><b>cv2.set 우선 + v4l2-ctl fallback</b> — 카메라 점유 중 v4l2-ctl이 silent
+        fail하는 문제 해결 (cv2.set은 cap이 열린 상태에서 즉시 적용됨)</li>
+      <li>슬라이더 sliderReleased 패턴 — I2C/USB 트래픽 폭주 방지</li>
+    </ul>
+    <div class="files">📁 modified: <code>capture/camera_worker.py</code> (+200 LOC), new: <code>ui/camera_panel.py</code> (~340 LOC)</div>
+  </div>
+
+  <!-- ===== P16 ===== -->
+  <div class="phase v3new">
+    <div class="title"><span class="pnum">P16</span><h4>탭 기반 작업 흐름 (4-탭 재구성)</h4>
+      <span class="tag ux">UX</span><span class="tag new">V3</span></div>
+    <p style="margin:8px 0">기존: 좌·중·우 3 컬럼 + dock + toolbar의 단일 화면 → 메뉴 중복·일관성 부족.
+    V3: <b>LiveView를 위쪽에 항상 표시 + 아래는 4-탭으로 작업 흐름 분리</b>.</p>
+
+    <div class="tab-mock"><div class="lbl">📷 라이브</div>
+      <div class="body">SensePanel + CapturePanel + CameraPanel + 4채널 미리보기 (BF/DPCx/DPCy/pseudoRGB)</div></div>
+    <div class="tab-mock"><div class="lbl">🏷️ 데이터셋</div>
+      <div class="body">DatasetPanel (클래스 + ROI 추가 + pending 리스트 + 저장 + YOLO export) + 워크플로우 가이드</div></div>
+    <div class="tab-mock"><div class="lbl">🤖 검출</div>
+      <div class="body">DetectPanel (AIPanel 호스트 + 분열 단계별 통계) + 양파 분열 단계 가이드</div></div>
+    <div class="tab-mock"><div class="lbl">📁 아카이브</div>
+      <div class="body">갤러리 / 플레이어 (이중 탭)</div></div>
+
+    <ul>
+      <li><b>QSplitter (Vertical)</b> — LiveView/Tabs 비율 사용자 자유 조정</li>
+      <li><b>탭 간 LiveView 공유</b> — frame은 위쪽에 항상 표시, 탭 전환해도 영상 끊김 없음</li>
+      <li>단축키 추가: <code>Ctrl+1~4</code> 탭 전환</li>
+      <li>Toolbar 단순화 — 전역 액션만 (카메라 토글 / BF·DF·끔 / DPC 촬영 / ROI 잠금)</li>
+    </ul>
+    <div class="files">📁 main_window.py 통째 재작성 (~600 LOC)</div>
+  </div>
+
+  <!-- ===== P17 ===== -->
+  <div class="phase v3new">
+    <div class="title"><span class="pnum">P17</span><h4>데이터셋 모듈 — COCO + YOLO + 자동 분할</h4>
+      <span class="tag feat">FEAT</span><span class="tag new">V3</span></div>
+    <p style="margin:8px 0">사용자가 라이브뷰에서 직접 라벨링한 데이터를 누적 → COCO JSON
+    저장 → Ultralytics 학습용 YOLO 폴더 자동 생성. 외부 라벨링 도구 (Label Studio 등) 없이
+    GUI 안에서 완결.</p>
+
+    <h4 style="margin-top:14px">Sub-phase 1 — CocoDataset 클래스</h4>
+    <ul>
+      <li>COCO 표준 JSON 형식: <code>info / licenses / categories / images / annotations</code></li>
+      <li>read/write 모두 지원 — 기존 dataset에 이어쓰기 가능</li>
+      <li>category_id 자동 매핑, image_id / ann_id 자동 증가</li>
+      <li>per-class 통계 메서드</li>
+    </ul>
+    <div class="files">📁 new: <code>app/dataset/coco_writer.py</code> (~150 LOC)</div>
+
+    <h4>Sub-phase 2 — YOLO writer + 80/20 자동 분할</h4>
+    <ul>
+      <li>COCO bbox <code>[x, y, w, h]</code> → YOLO normalized
+        <code>[xc, yc, w, h]</code> (0~1) 자동 변환</li>
+      <li><b>train/val 무작위 분할</b> 기본 80/20, <code>seed=42</code> 고정 (재현 가능)</li>
+      <li>출력 구조 (Ultralytics 즉시 호환):
+<pre><code>yolo_export/
+├── images/{train,val}/
+├── labels/{train,val}/
+├── classes.txt
+└── data.yaml          # path/train/val + nc + names</code></pre>
+      </li>
+    </ul>
+    <div class="files">📁 new: <code>app/dataset/yolo_writer.py</code> (~150 LOC)</div>
+
+    <h4>Sub-phase 3 — DatasetManager + DatasetPanel UI</h4>
+    <ul>
+      <li>DatasetManager: 폴더 구조 자동 생성 + add_sample(이미지, 박스들) +
+        export_yolo()</li>
+      <li>5 클래스 기본 정의: <code>interphase / prophase / metaphase /
+        anaphase / telophase</code> (간기/전기/중기/후기/말기)</li>
+      <li>DatasetPanel UI: 폴더 선택 + 클래스 드롭다운 + ROI 표시 +
+        "박스 추가" + pending 리스트 + 저장 + YOLO export 버튼</li>
+      <li>실시간 통계: 이미지 N장 / 라벨 N개 / 클래스별 카운트</li>
+    </ul>
+    <div class="files">📁 new: <code>app/dataset/dataset_manager.py</code> (~100 LOC), <code>app/ui/dataset_panel.py</code> (~330 LOC)</div>
+  </div>
+
+  <!-- ===== P18 ===== -->
+  <div class="phase v3new">
+    <div class="title"><span class="pnum">P18</span><h4>Active learning + LiveView 시각 피드백</h4>
+      <span class="tag ai">AI</span><span class="tag new">V3</span></div>
+    <ul>
+      <li><b>LiveView pending overlay</b> — 라벨링 박스를 <b>📌 점선 + 반투명 채움 +
+        한국어 클래스명</b>으로 표시. AI 박스(실선)와 시각 명확히 구분</li>
+      <li>클래스별 색상은 HSV 기반 결정적 매핑 (같은 클래스 = 같은 색)</li>
+      <li>탭 무관 항상 표시 — 작업 흐름 시각화</li>
+      <li><b>Active learning 워크플로우</b>:
+        <ol style="margin:6px 0 6px 24px">
+          <li>검출 탭에서 AI 추론 활성화 → 카메라가 분열기 검출</li>
+          <li>데이터셋 탭의 <b>"🤖 AI 검출 결과를 라벨로"</b> 버튼 클릭</li>
+          <li>검출 중 우리 클래스 매칭만 자동 pending 추가
+            (COCO person 등은 자동 skip)</li>
+          <li>사용자 검토 → 잘못된 박스 삭제 / 클래스 수정</li>
+          <li>"💾 스냅샷 + 라벨 저장" — 한 번에 영구화</li>
+        </ol>
+      </li>
+      <li>라벨링 시간이 <b>처음 모델 부트스트랩 후 수배 단축</b>됨 — 사람은 검토만</li>
+      <li>DetectPanel — 분열 단계별 통계 (현재 프레임 + 세션 누적 +
+        평균 검출/프레임)</li>
+    </ul>
+    <div class="files">📁 modified: <code>live_view.py</code>, <code>dataset_panel.py</code>, <code>main_window.py</code>; new: <code>detect_panel.py</code></div>
+  </div>
+
+  <h3>최종 모듈 트리 (V3)</h3>
+<pre><code>app/
+├── main.py
+├── capture/
+│   ├── camera_worker.py        # V4L2 + MJPG + 자동 분류 + cv2.set 우선 ⭐ V3
+│   ├── capture_controller.py
+│   └── sequence_repo.py
+├── imaging/
+│   ├── dpc.py
+│   └── rgb_compose.py
+├── ai/                          # V2 (Hailo NPU)
+│   ├── hailo_inference.py       # NMS list/flat 양식 모두 지원
+│   └── inference_worker.py
+├── dataset/                     ⭐ V3 신규
+│   ├── coco_writer.py           # COCO JSON 누적
+│   ├── yolo_writer.py           # train/val 자동 80/20 분할
+│   └── dataset_manager.py       # 5 클래스 기본 + add_sample/export
+├── ui/
+│   ├── style.py
+│   ├── header_bar.py
+│   ├── main_window.py            # 탭 구조 ⭐ V3 재작성
+│   ├── live_view.py              # AI overlay + pending overlay ⭐ V3
+│   ├── preview.py
+│   ├── sense_panel.py
+│   ├── capture_panel.py
+│   ├── camera_panel.py            # v4l2 동적 컨트롤 ⭐ V3
+│   ├── ai_panel.py
+│   ├── dataset_panel.py           ⭐ V3 신규 — 라벨링 UI
+│   ├── detect_panel.py            ⭐ V3 신규 — AI 통계
+│   ├── gallery_panel.py
+│   ├── player_panel.py
+│   └── image_viewer.py
+├── util/
+└── docs/
+    ├── Low-cost multi-modal microscope using Raspberry Pi.pdf  (참조 [1])
+    ├── RAIM_Scope_Development_Report.html  (이 문서, v3)
+    └── onion_mitosis_train.ipynb           ⭐ V3 신규 — Colab 학습 노트북</code></pre>
+</section>
+
+<!-- ============ §4 PERFORMANCE ============ -->
+<section id="perf">
+  <h2 class="section"><span class="num">§ 4 / 10</span>성능·측정 결과</h2>
+
+  <div class="kpi-row">
+    <div class="kpi"><span class="v">0.0 ms</span><span class="l">갤러리 4× refresh</span></div>
+    <div class="kpi ai"><span class="v">30.9 ms</span><span class="l">YOLOv11m 5MP NPU</span></div>
+    <div class="kpi ai"><span class="v">34.7 FPS</span><span class="l">AI Worker 처리량</span></div>
+    <div class="kpi ds"><span class="v">5 클래스</span><span class="l">기본 양파 분열</span></div>
+  </div>
+
+  <h3>데이터셋 모듈 검증 (V3 신규)</h3>
+  <table>
+    <thead><tr><th>테스트</th><th>입력</th><th>결과</th></tr></thead>
+    <tbody>
+      <tr><td>add_sample 누적</td><td>10 이미지 + 박스들</td><td class="ok-cell">10 이미지 / 10 라벨 / per-class 카운트 정확</td></tr>
+      <tr><td>YOLO export 분할</td><td>val_ratio=0.2, seed=42</td><td class="ok-cell">images/train 8 + images/val 2 (= 80/20)</td></tr>
+      <tr><td>data.yaml 형식</td><td>—</td><td class="ok-cell">Ultralytics 즉시 호환 (path/train/val/nc/names)</td></tr>
+      <tr><td>COCO 이어쓰기</td><td>기존 JSON 로드 후 add_sample</td><td class="ok-cell">image_id / ann_id 자동 증가, 충돌 없음</td></tr>
+      <tr><td>Active learning 라벨 추가</td><td>3 검출 (2 매칭 + 1 미매칭)</td><td class="ok-cell">우리 클래스 2개만 pending 추가, 1개 자동 skip</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ============ §5 DESIGN DECISIONS ============ -->
+<section id="design-decisions">
+  <h2 class="section"><span class="num">§ 5 / 10</span>주요 기술 결정</h2>
+
+  <div class="grid-2">
+    <div class="card"><h4>① UV + system-site-packages</h4>
+      <p>Pi에서 PyQt5/OpenCV/sense-hat/hailort/Python 모두 apt + UV venv 상속.
+      추가 pip 빌드 0초.</p></div>
+    <div class="card"><h4>② cv2.set 우선 + v4l2-ctl fallback</h4>
+      <p>cv2가 카메라 점유 중일 때 v4l2-ctl이 silent fail. cv2.set이 cap 열린 상태에서
+      즉시 적용. 슬라이더 → 영상 변경 즉시.</p></div>
+    <div class="card"><h4>③ 카메라 자동 분류</h4>
+      <p>USB ID + 이름 키워드로 microscope/general 판정 → 환경에 맞는 노출 프로파일
+      자동 적용. 사용자가 카메라 바꾸면 알아서 적응.</p></div>
+    <div class="card"><h4>④ LiveView 공유 + 탭 분리</h4>
+      <p>위쪽 LiveView는 항상 표시(영상 끊김 0), 아래쪽 탭으로 작업 모드 분리. 데이터셋
+      탭에서 라벨링하면서도 영상이 흐르는 것을 동시에 볼 수 있음.</p></div>
+    <div class="card"><h4>⑤ Pending overlay 시각 구분</h4>
+      <p>라벨링 박스 = 점선(📌). AI 박스 = 실선. 사용자가 "내가 찍은 박스"와 "AI가 찾은 박스"
+      를 즉시 구별.</p></div>
+    <div class="card"><h4>⑥ Active learning seed</h4>
+      <p>AI 검출 결과를 자동 라벨로 추가하지만, "스냅샷 + 라벨 저장" 호출 전까진 영구화 안 됨.
+      사용자가 검토할 시간 보장 — 잘못된 검출은 삭제/수정 가능.</p></div>
+    <div class="card"><h4>⑦ train/val seed 고정</h4>
+      <p>YOLO export 시 seed=42 → 같은 dataset에서 같은 분할. 모델 비교 실험에 재현성 확보.</p></div>
+    <div class="card"><h4>⑧ COCO 표준 + GUI 결합</h4>
+      <p>중간 형식을 표준 COCO JSON으로 → 다른 도구(Label Studio, FiftyOne 등)에서도
+      편집 가능. RAIM Scope에 종속되지 않음.</p></div>
+  </div>
+</section>
+
+<!-- ============ §6 KNOWN ISSUES ============ -->
+<section id="known-issues">
+  <h2 class="section"><span class="num">§ 6 / 10</span>현재 한계</h2>
+
+  <div class="callout warn">
+    <b>1. cv2 Python MJPG 디코딩 7 fps 한계</b><br>
+    Pi 5 ARM64에서 5MP MJPG 디코딩이 ~150 ms/frame.
+    디폴트 1MP로 회피. GStreamer pipeline 도입 시 5MP @ 30 fps 가능.
+  </div>
+
+  <div class="callout warn">
+    <b>2. AI 모델은 사전 학습이 COCO 80 클래스</b><br>
+    내장 yolov11m_h10.hef는 person/car/cat 등만 검출. 양파 분열기는 §9 가이드 +
+    §10 Colab 노트북으로 직접 학습 후 Hailo 변환 필요.
+  </div>
+
+  <div class="callout warn">
+    <b>3. Active learning은 부트스트랩 모델 필요</b> <span class="tag new">V3</span><br>
+    AI 보조 라벨링이 가치 발휘하려면 먼저 양파 분열기 모델이 있어야 함.
+    초기 30~50장은 수동 라벨링 → 모델 학습 → 그 후 AI 보조로 가속.
+  </div>
+
+  <div class="callout warn">
+    <b>4. train/val 분할이 무작위 (계층화 X)</b> <span class="tag new">V3</span><br>
+    클래스별 비율이 작은 데이터셋(50장 미만)에서 한 클래스가 val에만 또는
+    train에만 몰릴 가능성. 향후 stratified split 추가 권장 (M9).
+  </div>
+</section>
+
+<!-- ============ §7 IMPROVEMENTS ============ -->
+<section id="improvements">
+  <h2 class="section"><span class="num">§ 7 / 10</span>개선 제안</h2>
+
+  <div class="callout">
+    <b>V3 갱신</b>: L1(AI 분석) → <b>완료</b>. 사용자가 GUI 안에서 라벨링 + 학습 +
+    검출 사이클을 닫을 수 있게 됨.
+  </div>
+
+  <h3>단기 (1-2 주, 코드만)</h3>
+  <table>
+    <thead><tr><th>#</th><th>제안</th><th>구현 노트</th></tr></thead>
+    <tbody>
+      <tr><td class="num">S1</td>
+        <td><b>Stratified train/val split</b> — 클래스별 비율 유지</td>
+        <td>scikit-learn StratifiedShuffleSplit 또는 자체 구현</td></tr>
+      <tr><td class="num">S2</td>
+        <td><b>라벨 편집 UI</b> — pending 리스트에서 클래스 변경 / 박스 좌표 수정</td>
+        <td>QListWidget custom delegate 또는 별도 dialog</td></tr>
+      <tr><td class="num">S3</td>
+        <td><b>모델 비교 모드</b> — 같은 프레임에 두 모델 동시 추론</td>
+        <td>InferenceWorker 두 개 인스턴스 + LiveView 박스 색 분리</td></tr>
+      <tr><td class="num">S4</td>
+        <td><b>데이터셋 분할 export 옵션</b> — 70/20/10 또는 사용자 정의</td>
+        <td>DatasetPanel에 슬라이더 + dialog</td></tr>
+      <tr><td class="num">S5</td>
+        <td><b>QSettings 영속화</b> — 마지막 사용 데이터셋 폴더, 테마, 슬라이더 값</td>
+        <td>QSettings("RAIM", "Scope") 표준 패턴</td></tr>
+      <tr><td class="num">S6</td>
+        <td><b>Line illumination 패턴</b> (Watanabe §3.1)</td>
+        <td>_pat_line_row(i) / _pat_line_col(i)</td></tr>
+    </tbody>
+  </table>
+
+  <h3>중기 (1-2 개월)</h3>
+  <table>
+    <thead><tr><th>#</th><th>제안</th><th>구현 노트</th></tr></thead>
+    <tbody>
+      <tr><td class="num">M1</td>
+        <td><b>GStreamer libcamerasrc 파이프라인</b></td>
+        <td>cv2 우회 → 5MP @ 30 fps 라이브뷰. Pi 5 HW JPEG 디코더 활용</td></tr>
+      <tr><td class="num">M2</td>
+        <td><b>웹 버전 (FastAPI + WebSocket)</b></td>
+        <td>STEM 교실 다중 사용자 + 모바일 접근</td></tr>
+      <tr><td class="num">M3</td>
+        <td><b>학습 파이프라인 통합</b></td>
+        <td>RAIM Scope에서 직접 Colab 노트북 띄우거나 Pi에서 ONNX 학습</td></tr>
+      <tr><td class="num">M4</td>
+        <td><b>AI 검출 결과 매핑 강화</b></td>
+        <td>YOLO 학습 클래스 ↔ ONION_MITOSIS_KOREAN 자동 매핑 dict 외부 설정 파일화</td></tr>
+      <tr><td class="num">M5</td>
+        <td><b>플로팅 라벨 편집 도구</b></td>
+        <td>박스 클릭 → 컨텍스트 메뉴 (클래스 변경 / 삭제 / 박스 좌표 미세조정)</td></tr>
+      <tr><td class="num">M6</td>
+        <td><b>다중 시퀀스 데이터셋</b></td>
+        <td>타임랩스 + DPC 시퀀스도 데이터셋에 누적, multi-frame label</td></tr>
+    </tbody>
+  </table>
+
+  <h3>장기 (3 개월 이상)</h3>
+  <table>
+    <thead><tr><th>#</th><th>제안</th><th>구현 노트</th></tr></thead>
+    <tbody>
+      <tr><td class="num">L1</td><td><b>STEM 교육 모드</b></td>
+        <td>가이드 투어 + 시료 DB + AI 정답 비교</td></tr>
+      <tr><td class="num">L2</td><td><b>의료 진단 응용</b> (혈액 도말 등)</td>
+        <td>규제 (CE/FDA) 고려</td></tr>
+      <tr><td class="num">L3</td><td><b>클라우드 데이터셋 협업</b></td>
+        <td>Roboflow / Hugging Face 연동 — 여러 학교가 데이터 공유</td></tr>
+    </tbody>
+  </table>
+</section>
+
+<!-- ============ §8 REFERENCES ============ -->
+<section id="references">
+  <h2 class="section"><span class="num">§ 8 / 10</span>참고 문헌</h2>
+
+  <p class="cite">[1] <b>Watanabe W., Maruyama R., Arimoto H., Tamada Y.</b>
+    "Low-cost multi-modal microscope using Raspberry Pi."
+    <i>Optik</i> <b>212</b> (2020) 164713. DOI: 10.1016/j.ijleo.2020.164713</p>
+
+  <p class="cite">[2] <b>Phillips Z.F., D'Ambrosio M.V., Tian L., et al.</b>
+    "Multi-contrast imaging and digital refocusing on a mobile microscope."
+    <i>PLoS One</i> <b>10</b> (2015) e0124938.</p>
+
+  <p class="cite">[3] <b>Lin T.-Y., Maire M., Belongie S., et al.</b>
+    "Microsoft COCO: Common Objects in Context."
+    <i>ECCV</i> 2014. <a href="https://cocodataset.org/">cocodataset.org</a></p>
+
+  <p class="cite">[4] <b>Ultralytics</b> · "YOLOv8 Documentation"
+    — Custom 모델 학습 (§9, §10). <a href="https://docs.ultralytics.com/">docs.ultralytics.com</a></p>
+
+  <p class="cite">[5] <b>Hailo AI</b> · "HailoRT User Guide v5.x"
+    + "Hailo Model Zoo" — ONNX → HEF 변환. <a href="https://hailo.ai/developer-zone/">hailo.ai/developer-zone</a></p>
+
+  <h3>소프트웨어 스택 (V3)</h3>
+  <ul>
+    <li><b>Python 3.13.5</b> · <b>PyQt5 5.15.15</b> · <b>OpenCV 4.10.0</b>
+      · <b>NumPy 2.2.4</b> · <b>sense-hat 2.6.1</b></li>
+    <li><b>UV 0.11.8</b> (Astral)</li>
+    <li><b>HailoRT 5.1.1</b> + <b>hailo_platform Python 5.1.1</b></li>
+    <li>학습: <b>Ultralytics YOLOv8</b> + <b>Hailo Dataflow Compiler</b> (외부)</li>
+  </ul>
+</section>
+
+<!-- ============ §9 GUIDE (UPDATED) ============ -->
+<section id="custom-model">
+  <h2 class="section"><span class="num">§ 9 / 10 ⭐ V3 갱신</span>커스텀 모델 학습 가이드</h2>
+
+  <p>V2에서는 외부 도구(Label Studio 등)가 필요했지만, <b>V3는 RAIM Scope GUI
+  안에서 라벨링 + 데이터셋 export까지 한 번에 가능</b>합니다. 학습만 외부
+  GPU(Colab Free 사용 가능)에서, 변환은 Hailo Dataflow Compiler에서.</p>
+
+  <h3>5-step 단순화 워크플로우</h3>
+  <div class="workflow">
+    <ol>
+      <li>
+        <b>RAIM Scope에서 라벨링 (200-300장)</b> — 라이브 탭에서 양파 BF로
+        분열기 발견 → 데이터셋 탭에서 클래스 선택 + ROI 박스 추가.
+        Active learning 모드도 가능.
+      </li>
+      <li>
+        <b>YOLO 형식 export</b> — 데이터셋 탭의 "📦 YOLO 형식으로 export"
+        버튼 → <code>train/val 자동 80/20 분할</code> + <code>data.yaml</code> 자동 생성.
+      </li>
+      <li>
+        <b>Colab에서 학습</b> — § 10의 노트북 사용. 데이터셋 폴더 업로드 후
+        실행. T4 GPU 무료, 100 epochs ~30-60분. 결과: <code>best.pt</code>.
+      </li>
+      <li>
+        <b>Hailo Compiler 변환</b> — Hailo Developer Zone 무료 가입 →
+        Hailo Model Zoo로 ONNX → HEF 변환:
+<pre><code class="lang">bash</code>hailomz compile yolov8n \
+  --ckpt best.onnx --hw-arch hailo10h \
+  --calib-set-path calibration_images/ --classes 5</pre>
+      </li>
+      <li>
+        <b>Pi 배포 + 자동 인식</b> — <code>scp onion_mitosis_h10.hef
+        neomscope@192.168.123.108:~/RAIM_OUTPUT/models/</code> →
+        AI 패널 드롭다운에 자동 등장 → 활성화 → 라이브뷰에 한국어 분열 단계 박스.
+      </li>
+    </ol>
+  </div>
+
+  <h3>예상 시간 / 데이터 양</h3>
+  <table>
+    <thead><tr><th>단계</th><th>예상 시간</th><th>장비 / 비용</th></tr></thead>
+    <tbody>
+      <tr><td>1. RAIM Scope 라벨링 (200장)</td><td>1-2 시간</td><td>Pi (이미 보유)</td></tr>
+      <tr><td>1b. Active learning 부트스트랩 후</td><td>10-30분 추가 (검토만)</td><td>—</td></tr>
+      <tr><td>2. YOLO export</td><td>~5초</td><td>Pi (자동)</td></tr>
+      <tr><td>3. Colab 학습 (YOLOv8n)</td><td>30-60분</td><td>Colab Free T4 GPU</td></tr>
+      <tr><td>4. Hailo 변환</td><td>10-30분</td><td>x86 Linux (Hailo Compiler)</td></tr>
+      <tr><td>5. Pi 배포 + 검증</td><td>5분</td><td>scp + GUI 재시작</td></tr>
+      <tr><td><b>합계</b></td><td><b>~3-4 시간</b> (V2 대비 50% 단축)</td><td>전부 무료/이미 보유</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout ok">
+    <b>V2 → V3 단축 효과</b>: 외부 라벨링 도구 설치/학습 불필요 (GUI 안에서) +
+    Active learning 부트스트랩 후 라벨링 시간 50%↓ + train/val 자동 분할 (수동
+    분할 작업 제거).
+  </div>
+</section>
+
+<!-- ============ §10 COLAB NOTEBOOK ============ -->
+<section id="colab">
+  <h2 class="section"><span class="num">§ 10 / 10 ⭐ V3 신규</span>Colab 학습 노트북</h2>
+
+  <p>RAIM Scope 데이터셋을 Ultralytics YOLOv8로 학습하고 ONNX export까지 자동화한
+  Jupyter 노트북. <b><code>app/docs/onion_mitosis_train.ipynb</code></b> 별도 파일로 첨부.</p>
+
+  <h3>노트북 셀 구성</h3>
+  <table>
+    <thead><tr><th>#</th><th>셀</th><th>설명</th></tr></thead>
+    <tbody>
+      <tr><td class="num">1</td><td>📋 소개 (마크다운)</td><td>워크플로우 요약 + 사전 준비 체크리스트</td></tr>
+      <tr><td class="num">2</td><td>🔧 환경 셋업</td><td><code>!pip install ultralytics onnx onnxruntime</code> + GPU 확인</td></tr>
+      <tr><td class="num">3</td><td>📁 데이터셋 마운트</td><td>Google Drive 마운트 또는 zip 업로드 + RAIM Scope yolo_export 폴더 위치 지정</td></tr>
+      <tr><td class="num">4</td><td>🔍 데이터 확인</td><td>data.yaml 검사 + 클래스별 이미지 수 + 샘플 이미지 + 박스 시각화</td></tr>
+      <tr><td class="num">5</td><td>🎯 학습</td><td>YOLOv8n 100 epochs · imgsz=640 · batch=16 · early stopping</td></tr>
+      <tr><td class="num">6</td><td>📊 결과 평가</td><td>mAP@50, mAP@50-95, confusion matrix, val 이미지 prediction 시각화</td></tr>
+      <tr><td class="num">7</td><td>📦 ONNX export</td><td><code>yolo export model=best.pt format=onnx imgsz=640 simplify=True</code></td></tr>
+      <tr><td class="num">8</td><td>🚀 Hailo 변환 가이드 (마크다운)</td><td>Hailo Compiler 설치 + hailomz compile 명령 + Pi 배포 단계</td></tr>
+      <tr><td class="num">9</td><td>💾 다운로드</td><td>best.pt + best.onnx + 학습 로그 자동 압축 + Drive 저장</td></tr>
+    </tbody>
+  </table>
+
+  <h3>학습 권장 하이퍼파라미터</h3>
+<pre><code class="lang">python</code># 양파 분열기 5-class detection — Colab Free T4 GPU 기준
+model = YOLO('yolov8n.pt')   # nano (가장 작음, Hailo 변환 안정)
+results = model.train(
+    data='/content/yolo_export/data.yaml',
+    epochs=100,
+    imgsz=640,
+    batch=16,
+    patience=20,             # early stopping
+    optimizer='AdamW',
+    lr0=0.001,
+    augment=True,
+    mosaic=0.5,              # 분열기는 작은 객체라 mosaic 적게
+    degrees=15.0,            # 회전 augmentation
+    flipud=0.5,              # 상하 반전 (양파는 무방향)
+    fliplr=0.5,
+    project='runs/onion',
+)</pre>
+
+  <h3>예상 성능 (200장 / 100 epochs 기준)</h3>
+  <table>
+    <thead><tr><th>지표</th><th>예상</th><th>비고</th></tr></thead>
+    <tbody>
+      <tr><td>mAP@50</td><td class="num ok-cell">0.70 ~ 0.85</td><td>5 클래스 분류치고 양호</td></tr>
+      <tr><td>mAP@50-95</td><td class="num">0.45 ~ 0.60</td><td>박스 정확도 IoU 0.5~0.95 평균</td></tr>
+      <tr><td>학습 시간</td><td class="num">30 ~ 60 분</td><td>Colab Free T4</td></tr>
+      <tr><td>Hailo 변환 후 Pi inference</td><td class="num ok-cell">30+ FPS</td><td>YOLOv8n / Hailo-10H</td></tr>
+    </tbody>
+  </table>
+
+  <div class="callout teal">
+    <b>전체 사이클 닫음</b><br>
+    RAIM Scope (라벨링) → Colab 노트북 (학습) → Hailo Compiler (변환) →
+    Pi (실시간 검출). 각 단계가 표준 형식 (COCO JSON / data.yaml / ONNX / HEF)
+    이라 어느 단계든 외부 도구로 교체 가능. 본 보고서가 이 사이클의 사양서 역할.
+  </div>
+</section>
+
+<footer>
+  <p>RAIM Scope Development Report v3 · 2026-05-01<br>
+  Watanabe et al.(2020) 논문 학술 비영리 인용. 게시·배포 시 출판사 라이선스 준수.</p>
+  <p>📁 source: <code>app/docs/RAIM_Scope_Development_Report.html</code><br>
+  📁 학습 노트북: <code>app/docs/onion_mitosis_train.ipynb</code><br>
+  PDF로 변환: 브라우저에서 <code>Ctrl+P → "PDF로 저장"</code></p>
+</footer>
+
+</div>
+</body>
+</html>

@@ -1,0 +1,59 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+.venv/
+venv/
+env/
+ENV/
+
+# Distribution / packaging
+build/
+dist/
+*.egg-info/
+*.egg
+
+# Test / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.mypy_cache/
+.ruff_cache/
+
+# Editors / IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+.DS_Store
+Thumbs.db
+
+# Project-specific
+hailort.log
+*.hef
+*.har
+*.onnx
+*.pt
+runs/
+
+# Local user data
+captures/
+gallery/
+datasets_local/
+
+# Large reference assets (keep small ones)
+*.pdf
+
+# Secrets
+.env
+*.local
+
+# bkit / Claude Code tooling internals
+.bkit/
+.claude/
+.bkit-memory.json
+.pdca-status.json
+.pdca-snapshots/
